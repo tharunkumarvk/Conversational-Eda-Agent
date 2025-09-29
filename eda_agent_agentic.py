@@ -143,7 +143,7 @@ class ProcessingHistory:
 # --- Gemini Configuration ---
 def init_genai():
     """Initialize Google Generative AI with proper error handling"""
-    key = os.getenv("GOOGLE_API_KEY", "AIzaSyCNlPGHfBKVyamsS2fBIen3DK8JNJqLmm0")
+    key = os.getenv("GOOGLE_API_KEY")
     if not key:
         st.error("GOOGLE_API_KEY not found in environment variables!")
         return None
@@ -1332,7 +1332,7 @@ Execute or respond immediately. No extra explanations.
                 try:
                     llm = ChatGoogleGenerativeAI(
                     model="gemini-2.0-flash-exp",
-                    google_api_key=os.getenv("GOOGLE_API_KEY", "AIzaSyCNlPGHfBKVyamsS2fBIen3DK8JNJqLmm0"),
+                    google_api_key=os.getenv("GOOGLE_API_KEY"),
                     )
                     full_messages = [
                     SystemMessage(content=system_prompt)
