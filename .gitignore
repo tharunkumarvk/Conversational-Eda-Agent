@@ -1,0 +1,10 @@
+/.env
+/charts
+/data
+/eda_agent.db
+/eda_agent_agentic.zip
+/eda_users.db
+/test_gemini.py
+/uploaded_files
+/uploads
+/venv

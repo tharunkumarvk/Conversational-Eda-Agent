@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pandas
+numpy
+python-dotenv
+sqlalchemy
+plotly
+matplotlib
+seaborn
+scikit-learn
+google-generativeai
+python-multipart
+aiofiles
