@@ -65,15 +65,20 @@ if STORAGE_ENABLED:
 else:
     logger.info("⚠️ Supabase Storage disabled - files will be stored locally")
 
-# Create database tables with retry logic
+# Create database tables with retry logic - make fully optional for deployment
+DATABASE_ENABLED = False
 try:
-    logger.info("🔄 Connecting to database...")
+    logger.info("🔄 Attempting database connection...")
+    # Test connection first
+    with engine.connect() as conn:
+        conn.execute("SELECT 1")
     Base.metadata.create_all(bind=engine)
-    logger.info("✅ Database connection established")
+    DATABASE_ENABLED = True
+    logger.info("✅ Database connection established successfully")
 except Exception as e:
-    logger.error(f"❌ Database connection failed: {e}")
-    logger.error("⚠️ App will start but database features may not work")
-    # Don't exit - allow the app to start for health checks
+    logger.warning(f"⚠️ Database connection failed: {e}")
+    logger.warning("⚠️ App will run without database features (authentication disabled)")
+    logger.warning("⚠️ To enable database, configure DATABASE_URL environment variable")
 
 # Initialize rate limiter (if available)
 if SLOWAPI_AVAILABLE:
@@ -183,16 +188,21 @@ async def root():
     }
 
 @app.get("/api/health", tags=["Health"])
-async def health_check(db: Session = Depends(get_db)):
-    """Detailed health check"""
-    try:
-        # Check database
-        from sqlalchemy import text
-        db.execute(text("SELECT 1"))
-        db_status = "healthy"
-    except Exception as e:
-        logger.error(f"Database health check failed: {e}")
-        db_status = "unhealthy"
+async def health_check():
+    """Detailed health check - database optional"""
+    db_status = "disabled"
+    
+    # Only check database if it was successfully initialized
+    if DATABASE_ENABLED:
+        try:
+            # Check database connection
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            db_status = "healthy"
+        except Exception as e:
+            logger.error(f"Database health check failed: {e}")
+            db_status = "unhealthy"
     
     return {
         "status": "healthy" if db_status == "healthy" else "degraded",
