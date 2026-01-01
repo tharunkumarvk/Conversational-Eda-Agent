@@ -2,6 +2,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send, Bot, User, AlertCircle, Download, File } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
 import { api } from '../api/client';
 import '../styles/ChatPanel.css';
 
@@ -188,12 +192,21 @@ function ChatPanel({ fileId }) {
         {chatHistory?.map((msg, idx) => (
           <div key={idx}>
             <div className="message user-message">
-              <User size={20} />
-              <div className="message-content">{msg.query}</div>
+              <User size={20} className="message-icon" />
+              <div className="message-content user-content">{msg.query}</div>
             </div>
             <div className="message ai-message">
-              <Bot size={20} />
-              <div className="message-content">{msg.response}</div>
+              <Bot size={20} className="message-icon" />
+              <div className="message-content ai-content">
+                <div className="markdown-content">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeHighlight]}
+                  >
+                    {msg.response}
+                  </ReactMarkdown>
+                </div>
+              </div>
             </div>
           </div>
         ))}

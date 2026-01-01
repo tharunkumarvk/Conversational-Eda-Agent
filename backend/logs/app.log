@@ -3588,3 +3588,38 @@ ValueError: Value of 'color' is not the name of a column in 'data_frame'. Expect
 2026-01-01 13:54:07 - eda_agent - INFO - [main.py:943] - Upload directory: uploaded_files
 2026-01-01 13:54:07 - eda_agent - INFO - [main.py:944] - Database: postgresql://postgres:BoffinBot%402004@db.lhwptjxktbhublymzdbp.supabase.co:5432/postgres
 2026-01-01 13:54:58 - eda_agent - INFO - [main.py:948] - EDA Agent API shutting down...
+2026-01-01 13:55:31 - eda_agent - INFO - [main.py:941] - EDA Agent API starting up...
+2026-01-01 13:55:31 - eda_agent - INFO - [main.py:942] - Environment: production
+2026-01-01 13:55:31 - eda_agent - INFO - [main.py:943] - Upload directory: uploaded_files
+2026-01-01 13:55:31 - eda_agent - INFO - [main.py:944] - Database: postgresql://postgres:BoffinBot%402004@db.lhwptjxktbhublymzdbp.supabase.co:5432/postgres
+2026-01-01 13:56:19 - eda_agent - INFO - [main.py:224] - User authenticated: tharunkumarvk28@gmail.com
+2026-01-01 13:56:35 - eda_agent - INFO - [main.py:646] - Generating plot: scatter for fc0e48c6-ae04-45b0-b955-1c73eaf39312
+2026-01-01 13:56:37 - eda_agent - INFO - [main.py:674] - Plot generated and saved successfully: scatter_254ed4d5
+2026-01-01 13:57:18 - eda_agent - INFO - [main.py:696] - AI chat query: What's in this dataset?... for fc0e48c6-ae04-45b0-b955-1c73eaf39312
+2026-01-01 13:57:21 - eda_agent - INFO - [main.py:714] - AI response generated and saved successfully
+2026-01-01 14:25:41 - eda_agent - INFO - [main.py:948] - EDA Agent API shutting down...
+2026-01-01 14:25:50 - eda_agent - INFO - [main.py:1028] - EDA Agent API starting up...
+2026-01-01 14:25:50 - eda_agent - INFO - [main.py:1029] - Environment: production
+2026-01-01 14:25:50 - eda_agent - INFO - [main.py:1030] - Upload directory: uploaded_files
+2026-01-01 14:25:50 - eda_agent - INFO - [main.py:1031] - Database: postgresql://postgres:BoffinBot%402004@db.lhwptjxktbhublymzdbp.supabase.co:5432/postgres
+2026-01-01 14:26:25 - eda_agent - INFO - [main.py:1035] - EDA Agent API shutting down...
+2026-01-01 14:26:32 - eda_agent - INFO - [main.py:1028] - EDA Agent API starting up...
+2026-01-01 14:26:32 - eda_agent - INFO - [main.py:1029] - Environment: production
+2026-01-01 14:26:32 - eda_agent - INFO - [main.py:1030] - Upload directory: uploaded_files
+2026-01-01 14:26:32 - eda_agent - INFO - [main.py:1031] - Database: postgresql://postgres:BoffinBot%402004@db.lhwptjxktbhublymzdbp.supabase.co:5432/postgres
+2026-01-01 14:26:32 - eda_agent - INFO - [main.py:1035] - EDA Agent API shutting down...
+2026-01-01 14:26:40 - eda_agent - INFO - [main.py:1028] - EDA Agent API starting up...
+2026-01-01 14:26:40 - eda_agent - INFO - [main.py:1029] - Environment: production
+2026-01-01 14:26:40 - eda_agent - INFO - [main.py:1030] - Upload directory: uploaded_files
+2026-01-01 14:26:40 - eda_agent - INFO - [main.py:1031] - Database: postgresql://postgres:BoffinBot%402004@db.lhwptjxktbhublymzdbp.supabase.co:5432/postgres
+2026-01-01 14:27:58 - eda_agent - INFO - [main.py:1035] - EDA Agent API shutting down...
+2026-01-01 14:30:48 - eda_agent - INFO - [main.py:1028] - EDA Agent API starting up...
+2026-01-01 14:30:48 - eda_agent - INFO - [main.py:1029] - Environment: production
+2026-01-01 14:30:48 - eda_agent - INFO - [main.py:1030] - Upload directory: uploaded_files
+2026-01-01 14:30:48 - eda_agent - INFO - [main.py:1031] - Database: postgresql://postgres:BoffinBot%402004@db.lhwptjxktbhublymzdbp.supabase.co:5432/postgres
+2026-01-01 14:30:53 - eda_agent - INFO - [main.py:1035] - EDA Agent API shutting down...
+2026-01-01 14:33:02 - eda_agent - INFO - [main.py:684] - AI chat query: what this dataset isused for... for f221e015-62fe-4e3e-a5e9-63d1be00957c
+2026-01-01 14:33:07 - eda_agent - INFO - [main.py:702] - AI response generated and saved successfully
+2026-01-01 14:33:21 - eda_agent - INFO - [main.py:684] - AI chat query: visualise this dataset... for f221e015-62fe-4e3e-a5e9-63d1be00957c
+2026-01-01 14:33:37 - eda_agent - INFO - [main.py:702] - AI response generated and saved successfully
+2026-01-01 14:33:42 - eda_agent - INFO - [main.py:790] - Retrieved 8 plots for file_id: f221e015-62fe-4e3e-a5e9-63d1be00957c

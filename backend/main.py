@@ -250,6 +250,93 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         last_login=current_user.last_login
     )
 
+@app.get("/api/profile/stats", tags=["Profile"])
+async def get_profile_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user profile statistics and activity history"""
+    try:
+        # Count datasets
+        total_datasets = db.query(Dataset).filter(
+            Dataset.user_id == current_user.id
+        ).count()
+        
+        # Count chat messages
+        total_chats = db.query(ChatHistory).filter(
+            ChatHistory.user_id == current_user.id
+        ).count()
+        
+        # Count plots
+        total_plots = db.query(PlotHistory).filter(
+            PlotHistory.user_id == current_user.id
+        ).count()
+        
+        # Get recent datasets
+        recent_datasets = db.query(Dataset).filter(
+            Dataset.user_id == current_user.id
+        ).order_by(Dataset.upload_time.desc()).limit(5).all()
+        
+        # Get recent chats
+        recent_chats = db.query(ChatHistory).filter(
+            ChatHistory.user_id == current_user.id
+        ).order_by(ChatHistory.ts.desc()).limit(5).all()
+        
+        # Get recent plots
+        recent_plots = db.query(PlotHistory).filter(
+            PlotHistory.user_id == current_user.id
+        ).order_by(PlotHistory.ts.desc()).limit(5).all()
+        
+        return {
+            "user": {
+                "name": current_user.name,
+                "email": current_user.email,
+                "picture": current_user.picture,
+                "member_since": current_user.created_at.isoformat() if current_user.created_at else None,
+                "last_login": current_user.last_login.isoformat() if current_user.last_login else None
+            },
+            "statistics": {
+                "total_datasets": total_datasets,
+                "total_chats": total_chats,
+                "total_plots": total_plots
+            },
+            "recent_activity": {
+                "datasets": [
+                    {
+                        "file_id": d.file_id,
+                        "filename": d.filename,
+                        "upload_time": d.upload_time.isoformat() if d.upload_time else None,
+                        "rows": d.rows,
+                        "columns": d.columns
+                    }
+                    for d in recent_datasets
+                ],
+                "chats": [
+                    {
+                        "query": c.user_query[:100] + "..." if len(c.user_query) > 100 else c.user_query,
+                        "timestamp": c.ts.isoformat() if c.ts else None,
+                        "file_id": c.file_id
+                    }
+                    for c in recent_chats
+                ],
+                "plots": [
+                    {
+                        "plot_name": p.plot_name,
+                        "plot_type": p.plot_type,
+                        "timestamp": p.ts.isoformat() if p.ts else None,
+                        "file_id": p.file_id
+                    }
+                    for p in recent_plots
+                ]
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error fetching profile stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch profile statistics: {str(e)}"
+        )
+
 @app.post("/api/auth/logout", tags=["Authentication"])
 async def logout():
     """

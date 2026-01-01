@@ -103,6 +103,9 @@ function Dashboard() {
               <span className="user-email">{user?.email}</span>
             </div>
           </div>
+          <button onClick={() => navigate('/profile')} className="profile-btn" title="Profile">
+            <User size={20} />
+          </button>
           <button onClick={handleLogout} className="logout-btn" title="Logout">
             <LogOut size={20} />
           </button>

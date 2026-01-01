@@ -49,6 +49,9 @@ export const api = {
   getCurrentUser: () => apiClient.get('/api/auth/me'),
   logout: () => apiClient.post('/api/auth/logout'),
 
+  // Profile
+  getProfileStats: () => apiClient.get('/api/profile/stats'),
+
   // File operations
   uploadFile: (file, onUploadProgress) => {
     const formData = new FormData();

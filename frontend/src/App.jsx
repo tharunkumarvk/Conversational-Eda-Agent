@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Analysis from './pages/Analysis';
+import Profile from './pages/Profile';
 import './App.css';
 
 // Get Google Client ID from environment variable
@@ -57,6 +58,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Analysis />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/profile" 
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
                     </ProtectedRoute>
                   } 
                 />
