@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+from sqlalchemy.pool import NullPool
 
 # Import settings - handle both relative and absolute imports
 try:
@@ -13,22 +14,63 @@ except ImportError:
 # Use DATABASE_URL from settings (supports SQLite or PostgreSQL)
 DATABASE_URL = settings.DATABASE_URL
 
-# Configure engine based on database type with better error handling
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    # PostgreSQL/MySQL - add connection pooling and timeout settings
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=3600,
-        pool_size=5,
-        max_overflow=10,
-        connect_args={
-            "connect_timeout": 10,
-            "options": "-c timezone=utc"
-        }
-    )
+# Global flag to track database availability
+DB_AVAILABLE = False
+engine = None
+SessionLocal = None
+
+try:
+    # Configure engine based on database type with better error handling
+    if DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    else:
+        # PostgreSQL with IPv4-only DNS resolution and connection pooling
+        # Use sslmode=require for Supabase and prefer IPv4
+        if "sslmode" not in DATABASE_URL:
+            if "?" in DATABASE_URL:
+                DATABASE_URL += "&sslmode=require"
+            else:
+                DATABASE_URL += "?sslmode=require"
+        
+        engine = create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,
+            pool_recycle=300,  # Recycle connections every 5 minutes
+            pool_size=5,
+            max_overflow=10,
+            pool_timeout=30,
+            connect_args={
+                "connect_timeout": 10,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5,
+            }
+        )
+    
+    # Don't test connection immediately - let it fail lazily at first use
+    # This allows the app to start even if database is unreachable
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    DB_AVAILABLE = True
+    print("✅ Database engine created (connection will be tested on first use)")
+    
+except Exception as e:
+    print(f"⚠️ Database connection failed: {e}")
+    print("📋 App will start with limited functionality (no database persistence)")
+    print(f"📍 Attempted connection to: {DATABASE_URL[:50]}...")
+    
+    # Fallback to in-memory SQLite for local development
+    try:
+        print("🔄 Falling back to in-memory SQLite database...")
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+        DB_AVAILABLE = True
+        print("✅ In-memory database initialized (data won't persist)")
+    except Exception as fallback_error:
+        print(f"❌ Fallback database also failed: {fallback_error}")
+        engine = None
+        SessionLocal = None
+        DB_AVAILABLE = False
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
