@@ -13,12 +13,22 @@ except ImportError:
 # Use DATABASE_URL from settings (supports SQLite or PostgreSQL)
 DATABASE_URL = settings.DATABASE_URL
 
-# Configure engine based on database type
+# Configure engine based on database type with better error handling
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    # PostgreSQL/MySQL - no special connect_args needed
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    # PostgreSQL/MySQL - add connection pooling and timeout settings
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        pool_size=5,
+        max_overflow=10,
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c timezone=utc"
+        }
+    )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()

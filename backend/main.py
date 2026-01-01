@@ -65,8 +65,15 @@ if STORAGE_ENABLED:
 else:
     logger.info("⚠️ Supabase Storage disabled - files will be stored locally")
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Create database tables with retry logic
+try:
+    logger.info("🔄 Connecting to database...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("✅ Database connection established")
+except Exception as e:
+    logger.error(f"❌ Database connection failed: {e}")
+    logger.error("⚠️ App will start but database features may not work")
+    # Don't exit - allow the app to start for health checks
 
 # Initialize rate limiter (if available)
 if SLOWAPI_AVAILABLE:
