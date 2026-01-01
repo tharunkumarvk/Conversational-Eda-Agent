@@ -11,10 +11,10 @@ supabase==2.9.0  # Supabase Python client for Storage
 websockets==14.0  # WebSocket client for Supabase realtime
 
 # Data Processing
-pandas==2.2.0
+pandas==2.2.3
 numpy==1.26.4
 scikit-learn==1.4.0
-scipy==1.12.0
+scipy==1.13.1
 
 # Visualization
 plotly==5.18.0
