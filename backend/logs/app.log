@@ -3623,3 +3623,7 @@ ValueError: Value of 'color' is not the name of a column in 'data_frame'. Expect
 2026-01-01 14:33:21 - eda_agent - INFO - [main.py:684] - AI chat query: visualise this dataset... for f221e015-62fe-4e3e-a5e9-63d1be00957c
 2026-01-01 14:33:37 - eda_agent - INFO - [main.py:702] - AI response generated and saved successfully
 2026-01-01 14:33:42 - eda_agent - INFO - [main.py:790] - Retrieved 8 plots for file_id: f221e015-62fe-4e3e-a5e9-63d1be00957c
+2026-01-01 14:40:29 - eda_agent - INFO - [main.py:1028] - EDA Agent API starting up...
+2026-01-01 14:40:29 - eda_agent - INFO - [main.py:1029] - Environment: production
+2026-01-01 14:40:29 - eda_agent - INFO - [main.py:1030] - Upload directory: uploaded_files
+2026-01-01 14:40:29 - eda_agent - INFO - [main.py:1031] - Database: postgresql://postgres:BoffinBot%402004@db.lhwptjxktbhublymzdbp.supabase.co:5432/postgres
