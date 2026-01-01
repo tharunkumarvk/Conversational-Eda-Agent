@@ -499,55 +499,9 @@ graph TB
 
 ---
 
-## 🎬 **Live Demo & Screenshots**
-
-### 🖼️ **Interface Gallery**
-
-<div align="center">
-
-<table>
-<tr>
-<td align="center">
-<img src="https://via.placeholder.com/300x200/667eea/ffffff?text=Overview+Tab" alt="Overview Tab" width="300"/>
-<br><strong>📊 Overview Tab</strong>
-<br><sub>Dataset summaries and quick stats</sub>
-</td>
-<td align="center">
-<img src="https://via.placeholder.com/300x200/764ba2/ffffff?text=AI+Chat" alt="AI Chat" width="300"/>
-<br><strong>🤖 AI Chat Interface</strong>
-<br><sub>Natural language processing</sub>
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://via.placeholder.com/300x200/f093fb/ffffff?text=Interactive+Tools" alt="Tools" width="300"/>
-<br><strong>🛠️ Interactive Tools</strong>
-<br><sub>No-code data processing</sub>
-</td>
-<td align="center">
-<img src="https://via.placeholder.com/300x200/f59e0b/ffffff?text=Visualizations" alt="Visualizations" width="300"/>
-<br><strong>📈 Rich Visualizations</strong>
-<br><sub>Interactive plots and charts</sub>
-</td>
-</tr>
-</table>
-
-</div>
-
-### 🎮 **Try It Live**
-
-<div align="center">
-
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app-url.streamlit.app)
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tharunkumarvk/Conversational-Eda-Agent)
-
-</div>
-
----
 
 ## 🚀 **Future Enhancements Roadmap**
 
-### 🎯 **Phase 1: Scalability (Q1 2025)**
 
 <details>
 <summary><strong>🏗️ Backend Architecture</strong></summary>
@@ -571,165 +525,6 @@ graph TB
     └── File management service
 ```
 
-**🎯 Benefits:**
-- ⚡ 10x faster processing
-- 👥 Multi-user collaboration  
-- 💾 Persistent data storage
-- 🔒 Enterprise security
-
-</details>
-
-<details>
-<summary><strong>🎨 Frontend Revolution</strong></summary>
-
-```typescript
-🌟 Next-Gen UI:
-├── React/Next.js Frontend
-│   ├── Component library
-│   ├── Dark/Light themes
-│   ├── Mobile responsive
-│   └── PWA support
-├── Advanced Visualizations
-│   ├── D3.js integrations
-│   ├── Custom dashboards
-│   ├── Real-time updates
-│   └── Export options
-└── Collaboration Features
-    ├── Shared workspaces
-    ├── Comments & annotations
-    ├── Version control
-    └── Team permissions
-```
-
-**🎯 Benefits:**
-- 📱 Mobile-first design
-- 🎨 Beautiful, modern UI
-- 👥 Team collaboration
-- ⚡ Blazing fast performance
-
-</details>
-
-### 🎯 **Phase 2: Intelligence (Q2 2025)**
-
-<details>
-<summary><strong>🧠 Advanced AI Capabilities</strong></summary>
-
-```python
-🤖 AI Enhancements:
-├── Multi-Modal Analysis
-│   ├── Image data analysis
-│   ├── Time series forecasting
-│   ├── Text mining
-│   └── Audio processing
-├── AutoML Integration
-│   ├── Model selection
-│   ├── Hyperparameter tuning
-│   ├── Feature engineering
-│   └── Performance optimization
-└── Domain-Specific Agents
-    ├── Financial analysis
-    ├── Healthcare insights
-    ├── Marketing analytics
-    └── Scientific research
-```
-
-**🎯 Benefits:**
-- 🎯 Domain expertise
-- 🤖 Automated ML workflows
-- 📊 Multi-modal insights
-- 🔮 Predictive analytics
-
-</details>
-
-<details>
-<summary><strong>📊 Advanced Analytics</strong></summary>
-
-```python
-📈 Analytics Suite:
-├── Statistical Testing
-│   ├── A/B testing
-│   ├── Hypothesis testing
-│   ├── Confidence intervals
-│   └── Effect size analysis
-├── Time Series Analysis
-│   ├── Trend decomposition
-│   ├── Seasonality detection
-│   ├── Forecasting models
-│   └── Anomaly detection
-└── Causal Inference
-    ├── Causal discovery
-    ├── Treatment effects
-    ├── Confounding analysis
-    └── Mediation analysis
-```
-
-</details>
-
-### 🎯 **Phase 3: Enterprise (Q3 2025)**
-
-<details>
-<summary><strong>🏢 Enterprise Features</strong></summary>
-
-```yaml
-🏢 Enterprise Ready:
-Security:
-  - SSO/SAML integration
-  - Role-based access control
-  - Data encryption at rest
-  - Audit logging
-  
-Deployment:
-  - Docker containers
-  - Kubernetes orchestration  
-  - AWS/Azure/GCP support
-  - On-premise options
-  
-Governance:
-  - Data lineage tracking
-  - Compliance reporting
-  - Privacy controls
-  - Retention policies
-  
-Integration:
-  - API endpoints
-  - Webhook support
-  - Third-party connectors
-  - ETL pipeline integration
-```
-
-</details>
-
-<details>
-<summary><strong>☁️ Cloud & Deployment</strong></summary>
-
-```yaml
-☁️ Deployment Options:
-Cloud Native:
-  - Auto-scaling infrastructure
-  - Global CDN distribution
-  - Edge computing support
-  - Serverless functions
-  
-Monitoring:
-  - Performance metrics
-  - Usage analytics
-  - Error tracking
-  - Health checks
-  
-DevOps:
-  - CI/CD pipelines
-  - Automated testing
-  - Blue-green deployment
-  - Infrastructure as code
-```
-
-</details>
-
----
-
-## 📊 **Performance Metrics**
-
-<div align="center">
 
 ### 🎯 **Current Benchmarks**
 
@@ -762,65 +557,6 @@ DevOps:
 
 ---
 
-## 🤝 **Contributing**
-
-<div align="center">
-
-### 🌟 **Join Our Community**
-
-<table>
-<tr>
-<td align="center" width="33%">
-<img src="https://img.icons8.com/fluency/48/000000/github.png" alt="GitHub"/>
-<br><strong>Code</strong><br>
-<sub>Submit PRs, report bugs,<br>suggest features</sub>
-</td>
-<td align="center" width="33%">
-<img src="https://img.icons8.com/fluency/48/000000/documentation.png" alt="Docs"/>
-<br><strong>Documentation</strong><br>
-<sub>Improve guides,<br>add examples</sub>
-</td>
-<td align="center" width="33%">
-<img src="https://img.icons8.com/fluency/48/000000/test-tube.png" alt="Testing"/>
-<br><strong>Testing</strong><br>
-<sub>Test edge cases,<br>validate features</sub>
-</td>
-</tr>
-</table>
-
-</div>
-
-### 🛠️ **Development Setup**
-
-```bash
-# Fork and clone
-git clone https://github.com/yourusername/Conversational-Eda-Agent.git
-cd Conversational-Eda-Agent
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install development dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# Run tests
-pytest tests/
-
-# Start development server
-streamlit run eda_agent_agentic.py --server.runOnSave true
-```
-
-### 📋 **Contribution Guidelines**
-
-1. **🍴 Fork** the repository
-2. **🌿 Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **💾 Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **📤 Push** to branch (`git push origin feature/amazing-feature`)
-5. **🔄 Open** a Pull Request
-
----
 
 ## 📄 **License**
 
@@ -830,46 +566,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-</div>
-
----
-
-## 📞 **Contact & Support**
-
-<div align="center">
-
-### 🚀 **Ready to Transform Your Data Analysis?**
-
-<table>
-<tr>
-<td align="center" width="25%">
-<a href="mailto:your.email@example.com">
-<img src="https://img.icons8.com/fluency/48/000000/email.png" alt="Email"/>
-<br><strong>Email</strong>
-</a>
-</td>
-<td align="center" width="25%">
-<a href="https://github.com/tharunkumarvk">
-<img src="https://img.icons8.com/fluency/48/000000/github.png" alt="GitHub"/>
-<br><strong>GitHub</strong>
-</a>
-</td>
-<td align="center" width="25%">
-<a href="https://linkedin.com/in/yourusername">
-<img src="https://img.icons8.com/fluency/48/000000/linkedin.png" alt="LinkedIn"/>
-<br><strong>LinkedIn</strong>
-</a>
-</td>
-<td align="center" width="25%">
-<a href="https://twitter.com/yourusername">
-<img src="https://img.icons8.com/fluency/48/000000/twitter.png" alt="Twitter"/>
-<br><strong>Twitter</strong>
-</a>
-</td>
-</tr>
-</table>
-
-### 💖 **Show Your Support**
 
 If this project helped you, please consider:
 
@@ -885,16 +581,9 @@ If this project helped you, please consider:
 
 <div align="center">
 
-### 🎉 **Ready to Get Started?**
-
-[![Launch App](https://img.shields.io/badge/🚀_Launch_App-667eea?style=for-the-badge&logoColor=white)](https://your-app-url.streamlit.app)
-[![View Demo](https://img.shields.io/badge/🎬_View_Demo-764ba2?style=for-the-badge&logoColor=white)](https://your-demo-url.com)
-[![Read Docs](https://img.shields.io/badge/📚_Read_Docs-f093fb?style=for-the-badge&logoColor=white)](https://your-docs-url.com)
-
----
 
 <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=24&duration=3000&pause=1000&color=6366F1&center=true&vCenter=true&width=800&height=100&lines=Transform+Your+Data+Analysis+Workflow+Today!;No+Coding+Required+-+Just+Natural+Conversation;AI+Powered+•+Production+Ready+•+Open+Source" alt="Call to Action">
 
-**Made with ❤️ by the EDA Agent Team**
+**Made with ❤️ by Tharunkumar VK**
 
 </div>
