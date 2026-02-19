@@ -21,22 +21,6 @@
 https://github.com/user-attachments/assets/376f9547-1458-4214-bd2c-17f02afd3545
 
 
-
-    
-## 🌟 **What Makes This Special?**
-
-<div align="center">
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🎯 PROBLEM: Data analysis requires coding expertise         │
-│  💡 SOLUTION: Just chat naturally - "analyze my data"       │
-│  🚀 RESULT: Instant insights, plots, and processed data     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-</div>
-
 ### 🎪 **Live Demo Scenarios**
 
 <table>
@@ -85,49 +69,6 @@ https://github.com/user-attachments/assets/376f9547-1458-4214-bd2c-17f02afd3545
    • Custom dashboards
 ```
 
-</td>
-</tr>
-</table>
-
----
-
-## 🎮 **Interactive Features**
-
-### 🎨 **Multi-Modal Interface**
-
-<div align="center">
-
-<!-- Interactive Dashboard Animation -->
-<img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=22&duration=3000&pause=1000&color=6366F1&center=true&vCenter=true&multiline=true&width=600&height=100&lines=🏠+Overview+Tab;🛠️+Interactive+Tools;🤖+AI+Chat+Assistant;📊+Results+Visualization;📈+Report+Generation" alt="Interface Features">
-
-</div>
-
-<table>
-<tr>
-<td align="center" width="20%">
-<img src="https://img.icons8.com/fluency/48/000000/home.png" alt="Overview"/>
-<br><strong>Overview</strong><br>
-<sub>Dataset summaries<br>Quick statistics<br>Data quality scores</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://img.icons8.com/fluency/48/000000/settings.png" alt="Tools"/>
-<br><strong>Tools</strong><br>
-<sub>No-code preprocessing<br>Custom plot generator<br>Data merger</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://img.icons8.com/fluency/48/000000/chat-bot.png" alt="AI Chat"/>
-<br><strong>AI Chat</strong><br>
-<sub>Natural language queries<br>Autonomous processing<br>Intelligent responses</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://img.icons8.com/fluency/48/000000/bar-chart.png" alt="Results"/>
-<br><strong>Results</strong><br>
-<sub>Interactive visualizations<br>Plot galleries<br>Download options</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://img.icons8.com/fluency/48/000000/report-card.png" alt="Reports"/>
-<br><strong>Reports</strong><br>
-<sub>Automated summaries<br>PDF generation<br>Share insights</sub>
 </td>
 </tr>
 </table>
@@ -273,41 +214,6 @@ echo "GOOGLE_API_KEY=your_gemini_api_key_here" > .env
 # 4. Launch the application
 streamlit run eda_agent_agentic.py
 ```
-
-## 🏗️ **Architecture & Tech Stack**
-
-### 🧱 **Core Components**
-
-<div align="center">
-
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        A[Streamlit UI] --> B[Interactive Tabs]
-        B --> C[Real-time Updates]
-    end
-    
-    subgraph "AI Layer"
-        D[Gemini 2.0 Flash] --> E[LangGraph Agent]
-        E --> F[Tool Selection]
-    end
-    
-    subgraph "Processing Layer"
-        G[Pandas] --> H[Scikit-learn]
-        H --> I[Advanced Preprocessing]
-    end
-    
-    subgraph "Visualization Layer"
-        J[Plotly] --> K[Matplotlib]
-        K --> L[Seaborn]
-    end
-    
-    A --> D
-    F --> G
-    I --> J
-```
-
-</div>
 
 ## 📄 **License**
 
