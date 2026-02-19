@@ -1,4 +1,4 @@
-# 🤖 DataColomus - Conversational EDA Agent
+# 🤖 DataColombus - Conversational EDA Agent
 ### *The Future of Data Analysis is Here - Chat Your Way to Insights*
 
 <div align="center">
