@@ -17,6 +17,54 @@
 
 ---
 
+## 🏗️ Architecture (Streamlit Version)
+
+> See [ARCHITECTURE.md](ARCHITECTURE.md) for the full diagram and component breakdown.
+
+```mermaid
+graph TB
+    User(["👤 User"])
+
+    subgraph Streamlit["eda_agent_agentic.py — Streamlit App"]
+        Sidebar["📁 Sidebar\nFile Upload & Management"]
+        Tab1["🏠 Overview"]
+        Tab2["🛠️ Tools\nPreprocessing · Merge · Plot"]
+        Tab3["🤖 AI Chat"]
+        Tab4["📊 Results"]
+        Tab5["📈 Reports"]
+        State["💾 Session State\nfiles · preprocessed_files\nchat_history · plot_cache"]
+
+        subgraph Core["⚙️ Core Functions"]
+            FileOps["File Ops\nload · add · get"]
+            Analysis["Data Analysis\nprofile · smart-viz"]
+            Preprocess["Preprocessing Pipeline\nmissing · outliers · scale\nencode · PCA · SMOTE"]
+            VizEngine["Visualization Engine\n30+ chart types"]
+            MergeOps["Merge Operations\nSQL joins · fuzzy match"]
+        end
+
+        subgraph Agent["🤖 LangGraph Agent"]
+            AgentNode["Agent Node\nGemini 2.5 Flash"]
+            ToolNode["Tool Node"]
+        end
+    end
+
+    Gemini(["☁️ Google\nGemini API"])
+
+    User -->|upload| Sidebar
+    User -->|buttons| Tab2
+    User -->|chat| Tab3
+    Sidebar --> FileOps --> State
+    Tab2 --> Preprocess & VizEngine & MergeOps --> State
+    Tab3 --> AgentNode --> Gemini --> AgentNode
+    AgentNode -- tool_calls --> ToolNode
+    ToolNode --> Analysis & Preprocess & VizEngine & MergeOps
+    ToolNode -- results --> AgentNode
+    Tab4 -->|displays| State
+    Tab5 -->|history| State
+```
+
+---
+
 
 https://github.com/user-attachments/assets/376f9547-1458-4214-bd2c-17f02afd3545
 
