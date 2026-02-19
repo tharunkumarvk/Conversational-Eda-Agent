@@ -181,25 +181,6 @@ graph TD
 
 </div>
 
-## 🚀 **Getting Started**
-
-### ⚡ **Quick Launch**
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/tharunkumarvk/Conversational-Eda-Agent.git
-cd Conversational-Eda-Agent
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Set up your API key
-echo "GOOGLE_API_KEY=your_gemini_api_key_here" > .env
-
-# 4. Launch the application
-streamlit run eda_agent_agentic.py
-```
-
 ## 📄 **License**
 
 <div align="center">
