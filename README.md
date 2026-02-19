@@ -181,21 +181,6 @@ graph TD
 
 </div>
 
-```python
-🎨 Plot Types Available:
-┌─────────────────┬─────────────────┬─────────────────┐
-│ Statistical     │ Advanced        │ Interactive     │
-├─────────────────├─────────────────├─────────────────┤
-│ • Histograms    │ • 3D Scatter    │ • Plotly Charts │
-│ • Box Plots     │ • Heatmaps      │ • Zoom & Pan    │
-│ • Scatter       │ • Sunburst      │ • Hover Details │
-│ • Line Charts   │ • Treemap       │ • Animations    │
-│ • Bar Charts    │ • Funnel        │ • Crossfilter   │
-└─────────────────┴─────────────────┴─────────────────┘
-```
-
----
-
 ## 🚀 **Getting Started**
 
 ### ⚡ **Quick Launch**
