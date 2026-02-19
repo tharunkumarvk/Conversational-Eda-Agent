@@ -163,7 +163,7 @@ def ask_gemini_basic(prompt: str, context: Dict[str, Any] = None) -> str:
     
     try:
         # Use the correct model name
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         
         # Add context about files if available
         context_str = ""
@@ -646,6 +646,7 @@ def enhanced_preprocessing(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd
                             
                             if outlier_count > 0:
                                 if outlier_action == 'cap':
+                                    df_processed[col] = df_processed[col].astype(float)
                                     df_processed.loc[df_processed[col] < lower_bound, col] = lower_bound
                                     df_processed.loc[df_processed[col] > upper_bound, col] = upper_bound
                                     actions.append(f"Capped {outlier_count} outliers in {col} using IQR method")
@@ -1066,7 +1067,7 @@ if LANGGRAPH_AVAILABLE and GENAI:
                          feature_selection: bool = False,
                          sel_method: str = "variance",  # variance, kbest, importance
                          var_threshold: float = 0.0,
-                         k_best: Union[int, str] = "all",
+                         k_best: str = "all",
                          imp_threshold: float = 0.01,
                          handle_imbalance: bool = False,
                          imb_method: str = "smote",  # smote, undersample
@@ -1074,12 +1075,21 @@ if LANGGRAPH_AVAILABLE and GENAI:
                          polynomial: bool = False,
                          poly_degree: int = 2,
                          binning: bool = False,
-                         bin_cols: List[str] = None,
+                         bin_cols: str = None,
                          bins: int = 5) -> str:
             """Comprehensive preprocessing with all parameters"""
             df, name, idx = get_file_by_ref(file_reference)
             if df is None:
                 return f"File {file_reference} not found"
+            
+            # Parse comma-separated bin_cols if provided
+            bin_cols_parsed = bin_cols.split(',') if bin_cols and isinstance(bin_cols, str) else None
+            # Parse k_best if it's numeric
+            try:
+                k_best_parsed = int(k_best) if k_best and k_best != "all" else k_best
+            except:
+                k_best_parsed = k_best
+            
             processing_params = {
                 # Pass all new params here...
                 "handle_missing": True,
@@ -1104,7 +1114,7 @@ if LANGGRAPH_AVAILABLE and GENAI:
                 "feature_selection": feature_selection,
                 "sel_method": sel_method,
                 "var_threshold": var_threshold,
-                "k_best": k_best,
+                "k_best": k_best_parsed,
                 "imp_threshold": imp_threshold,
                 "handle_imbalance": handle_imbalance,
                 "imb_method": imb_method,
@@ -1112,7 +1122,7 @@ if LANGGRAPH_AVAILABLE and GENAI:
                 "polynomial": polynomial,
                 "poly_degree": poly_degree,
                 "binning": binning,
-                "bin_cols": bin_cols,
+                "bin_cols": bin_cols_parsed,
                 "bins": bins
             }
             processed_df, actions = enhanced_preprocessing(df, processing_params)
@@ -1143,7 +1153,7 @@ if LANGGRAPH_AVAILABLE and GENAI:
                               barmode: str = "group",
                               nbins: int = 30,
                               kind: str = "scatter",
-                              path: List[str] = None,
+                              path: str = None,
                               locationmode: str = "country names",
                               fill: bool = True
                               ) -> str:
@@ -1175,6 +1185,9 @@ if LANGGRAPH_AVAILABLE and GENAI:
                         elif categorical_cols:
                             suggestions.append(f"Suggested x columns: {', '.join(categorical_cols[:3])}")
                     
+                    # Parse path parameter if it's a comma-separated string
+                    path_parsed = path.split(',') if path and isinstance(path, str) else (path if path else [])
+                    
                     plot_config = {
                         'type': plot_type,
                         'x': x_column,
@@ -1185,7 +1198,7 @@ if LANGGRAPH_AVAILABLE and GENAI:
                         'barmode': barmode,
                         'nbins': nbins,
                         'kind': kind,
-                        'path': path if path else [],
+                        'path': path_parsed,
                         'locationmode': locationmode,
                         'fill': fill,
                         'title': f"{plot_type.title()} - {name}"
@@ -1212,22 +1225,28 @@ if LANGGRAPH_AVAILABLE and GENAI:
         @tool
         def merge_files_tool(left_file: str, right_file: str, 
                      how: str = "inner",  # inner, outer, left, right, cross
-                     left_on: Union[str, List[str]] = None,
-                     right_on: Union[str, List[str]] = None, 
-                     suffixes: List[str] = ["_left", "_right"],
+                     left_on: str = None,
+                     right_on: str = None, 
+                     suffixes: str = "_left,_right",
                      indicator: bool = False,
                      validate: str = None,  # one_to_one, etc.
                      fuzzy: bool = False,
                      fuzzy_threshold: int = 80,
                      concat_axis: int = None,
                      join: str = "outer",  # For concat
-                     keys: List[str] = None) -> str:
+                     keys: str = None) -> str:
             """Comprehensive merging"""
             left_df, left_name, _ = get_file_by_ref(left_file)
             right_df, right_name, _ = get_file_by_ref(right_file)
             if left_df is None or right_df is None:
                 return "File not found"
-            merged_df, msg = merge_dataframes(left_df, right_df, left_on=left_on, right_on=right_on, how=how, concat_axis=concat_axis, suffixes=suffixes, indicator=indicator, validate=validate, fuzzy=fuzzy, fuzzy_threshold=fuzzy_threshold)
+            
+            # Parse parameters
+            left_on_parsed = left_on.split(',') if left_on and ',' in left_on else left_on
+            right_on_parsed = right_on.split(',') if right_on and ',' in right_on else right_on
+            suffixes_parsed = suffixes.split(',') if suffixes and ',' in suffixes else ["_left", "_right"]
+            
+            merged_df, msg = merge_dataframes(left_df, right_df, left_on=left_on_parsed, right_on=right_on_parsed, how=how, concat_axis=concat_axis, suffixes=suffixes_parsed, indicator=indicator, validate=validate, fuzzy=fuzzy, fuzzy_threshold=fuzzy_threshold)
             if merged_df is not None:
                 timestamp = int(time.time())
                 merged_name = f"merged_{left_name.split('.')[0]}_{right_name.split('.')[0]}_{timestamp}.csv"
@@ -1256,15 +1275,17 @@ if LANGGRAPH_AVAILABLE and GENAI:
                     files_context += f"File {idx}: {metadata.name} ({metadata.shape[0]}x{metadata.shape[1]})\n"
                 # AUTONOMOUS AGENT SYSTEM PROMPT
                 system_prompt = f"""
-You are an AUTONOMOUS EDA agent that EXECUTES tasks immediately or ANSWERS questions based on history.
+You are an AUTONOMOUS EDA agent that EXECUTES tasks immediately.
 AVAILABLE FILES:
 {files_context}
 
 YOUR BEHAVIOR:
-- If the user requests data operations like analysis, preprocessing, visualization, or merging, IMMEDIATELY call the appropriate tool.
-- If the user asks a question about past actions, results, or general EDA info, ANSWER DIRECTLY using knowledge from conversation history, without tools.
-- DO NOT explain or provide code; be concise and action-oriented.
-- For questions like \"what preprocessing did you use?\", summarize from previous responses.
+- When the user requests data operations (analysis, preprocessing, visualization, merging), call the appropriate tool.
+- After receiving tool results, provide a brief, friendly summary of what was accomplished.
+- If the user asks a question about past actions, answer directly without calling tools.
+- Be concise and action-oriented.
+
+IMPORTANT: After tool execution, ALWAYS provide a short summary message to the user confirming what was done.
 
 TOOL MAPPING:
 - Data analysis/insights → analyze_data_tool
@@ -1331,7 +1352,7 @@ Execute or respond immediately. No extra explanations.
 """
                 try:
                     llm = ChatGoogleGenerativeAI(
-                    model="gemini-2.0-flash-exp",
+                    model="gemini-2.5-flash",
                     google_api_key=os.getenv("GOOGLE_API_KEY"),
                     )
                     full_messages = [
@@ -1849,7 +1870,29 @@ with tab3:
                         }
                         
                         result = LANGGRAPH_AGENT.invoke(initial_state)
-                        ai_response = result["messages"][-1].content
+                        
+                        # Extract the final AI response
+                        # Priority: 1) Final AIMessage with content, 2) Last ToolMessage, 3) Any message with content
+                        ai_response = None
+                        tool_results = []
+                        
+                        for msg in reversed(result["messages"]):
+                            # Collect tool results
+                            if hasattr(msg, '__class__') and msg.__class__.__name__ == 'ToolMessage':
+                                if msg.content:
+                                    tool_results.insert(0, msg.content)
+                            # Look for final AI summary
+                            elif hasattr(msg, 'content') and msg.content and isinstance(msg.content, str):
+                                # Check if it's an AIMessage without tool_calls (final response)
+                                if not (hasattr(msg, 'tool_calls') and msg.tool_calls):
+                                    ai_response = msg.content
+                                    break
+                        
+                        # If no final AI summary, use tool results
+                        if not ai_response and tool_results:
+                            ai_response = "\n\n".join(tool_results)
+                        elif not ai_response:
+                            ai_response = "✅ Task completed successfully!"
                         
                     except Exception as e:
                         st.error(f"Agent error: {str(e)}")
@@ -1932,10 +1975,10 @@ with tab4:
                     st.metric("Columns", df.shape[1])
                     
                     # Show data types
-                    with st.expander("Data Types"):
-                        dtype_info = df.dtypes.value_counts()
-                        for dtype, count in dtype_info.items():
-                            st.text(f"{dtype}: {count}")
+                    st.write("**Data Types:**")
+                    dtype_info = df.dtypes.value_counts()
+                    for dtype, count in dtype_info.items():
+                        st.text(f"{dtype}: {count}")
     
     # Show cached plots with better handling
     if st.session_state.plot_cache:
@@ -2062,7 +2105,7 @@ with tab5:
 
 Format as numbered list with brief explanations."""
                         response = GENAI.models.generate_content(
-                            model="gemini-2.0-flash-exp",
+                            model="gemini-2.5-flash",
                             contents=[{
                                 "role": "user",
                                 "parts": [{"text": prompt}]

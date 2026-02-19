@@ -1,10 +1,65 @@
-/.env
-/charts
-/data
-/eda_agent.db
-/eda_agent_agentic.zip
-/eda_users.db
-/test_gemini.py
-/uploaded_files
-/uploads
-/venv
+# Environment and configuration
+.env
+.env.local
+.python-version
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded files and data
+uploaded_files/
+uploads/
+data/
+charts/
+agent_data/
+
+# Test files
+test_*.py
+*_test.py
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Frontend
+frontend/.vite/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+backend/logs/
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# OS files
+.DS_Store
+Thumbs.db
