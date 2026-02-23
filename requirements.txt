@@ -1,64 +1,22 @@
-# Core Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+# Streamlit
+streamlit==1.30.0
 
 # Database
 sqlalchemy==2.0.25
-alembic==1.13.1
-psycopg2-binary==2.9.9  # PostgreSQL adapter for cloud databases
-pymysql==1.1.0  # MySQL adapter for local/cloud MySQL
-cryptography==41.0.7  # Required for MySQL SSL connections
-supabase==2.9.0  # Supabase Python client for Storage
-websockets==14.0  # WebSocket client for Supabase realtime
+psycopg2-binary==2.9.9
+bcrypt==4.1.2
 
 # Data Processing
 pandas==2.2.3
-numpy==1.26.4
+numpy>=1.26.4,<2.0.0
 scikit-learn==1.4.0
-scipy==1.13.1
 
 # Visualization
 plotly==5.18.0
-matplotlib==3.8.2
-seaborn==0.13.1
-kaleido==0.2.1
 
-# AI/ML
+# AI
 google-generativeai==0.8.3
-langchain==0.3.13
-langchain-core==0.3.28
-langchain-google-genai==2.0.8
-langgraph==0.2.60
-
-# Rate Limiting & Security
-slowapi==0.1.9
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.1.2  # Password hashing for authentication
-python-dotenv==1.0.0
-
-# Data Handling
-openpyxl==3.1.2
-xlrd==2.0.1
-fuzzywuzzy==0.18.0
-python-Levenshtein==0.23.0
-
-# Additional ML
-imbalanced-learn==0.12.0
-
-# Streamlit (for legacy support)
-streamlit==1.30.0
 
 # Utilities
-pydantic==2.7.4  # Updated to fix langchain compatibility
-pydantic-settings==2.1.0
-requests==2.31.0
-aiofiles==23.2.1
-
-# Development
-pytest==7.4.4
-pytest-asyncio==0.23.3
-httpx==0.26.0
-black==24.1.1
-flake8==7.0.0
+python-dotenv==1.0.0
+openpyxl==3.1.2
