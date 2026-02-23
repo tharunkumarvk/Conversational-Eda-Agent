@@ -1,53 +1,40 @@
-# Streamlit
-streamlit==1.30.0
+# === Requirements for eda_agent_agentic.py (Streamlit EDA App) ===
+# No pinned versions — let pip resolve Python 3.13 compatible wheels
 
-# Database
-sqlalchemy==2.0.25
-alembic==1.13.1
-psycopg2-binary==2.9.9
-pymysql==1.1.0
-cryptography==41.0.7
-supabase==2.9.0
-websockets==14.0
+# App Framework
+streamlit
 
-# Data Processing
-pandas==2.2.3
-numpy>=1.26.4,<2.0.0
-scikit-learn==1.4.0
-scipy==1.13.1
+# Data Science
+pandas
+numpy
+scipy
+matplotlib
+seaborn
 
 # Visualization
-plotly==5.18.0
-matplotlib==3.8.2
-seaborn==0.13.1
-kaleido==0.2.1
+plotly
+kaleido
 
-# AI/ML
-google-generativeai==0.8.3
-langchain==0.3.13
-langchain-core==0.3.28
-langchain-google-genai==2.0.8
-langgraph==0.2.60
+# ML / Preprocessing
+scikit-learn
+imbalanced-learn
 
-# Security
-slowapi==0.1.9
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.1.2
-python-dotenv==1.0.0
+# AI
+google-generativeai
+langchain-core
+langchain-google-genai
+langgraph
 
-# Data Handling
-openpyxl==3.1.2
-xlrd==2.0.1
-fuzzywuzzy==0.18.0
-python-Levenshtein==0.23.0
+# Database & Auth
+sqlalchemy
+psycopg2-binary
+bcrypt
 
-# Additional ML
-imbalanced-learn==0.12.0
-recordlinkage==0.16
+# Fuzzy Matching
+fuzzywuzzy
+python-Levenshtein
+recordlinkage
 
 # Utilities
-pydantic>=2.7.4,<3.0.0
-pydantic-settings==2.1.0
-requests==2.31.0
-aiofiles==23.2.1
+python-dotenv
+openpyxl
