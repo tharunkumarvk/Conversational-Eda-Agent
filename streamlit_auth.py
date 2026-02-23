@@ -43,14 +43,35 @@ def get_config(key: str, default: str = "") -> str:
 
 DATABASE_URL = get_config("DATABASE_URL", "sqlite:///./streamlit_users.db")
 
+# Handle special characters in password by building URL from parts
+# This fixes the @ symbol in passwords breaking URL parsing
+DB_HOST = get_config("DB_HOST", "")
+DB_USER = get_config("DB_USER", "")
+DB_PASSWORD = get_config("DB_PASSWORD", "")
+DB_NAME = get_config("DB_NAME", "")
+DB_PORT = get_config("DB_PORT", "5432")
+
+if DB_HOST and DB_USER and DB_PASSWORD:
+    # Build URL from individual components (handles special chars in password)
+    from sqlalchemy.engine import URL
+    DATABASE_URL = URL.create(
+        drivername="postgresql",
+        username=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=int(DB_PORT),
+        database=DB_NAME or "postgres"
+    )
+
 # Create engine based on database type
-if DATABASE_URL.startswith("sqlite"):
+db_url_str = str(DATABASE_URL)
+if db_url_str.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL, 
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
-elif DATABASE_URL.startswith("mysql"):
+elif db_url_str.startswith("mysql"):
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
