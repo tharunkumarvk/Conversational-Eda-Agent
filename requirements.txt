@@ -10,12 +10,22 @@ bcrypt==4.1.2
 pandas==2.2.3
 numpy>=1.26.4,<2.0.0
 scikit-learn==1.4.0
+scipy==1.13.1
+imbalanced-learn==0.12.0
 
 # Visualization
 plotly==5.18.0
+matplotlib==3.8.2
+seaborn==0.13.1
 
 # AI
 google-generativeai==0.8.3
+langchain-core==0.3.28
+
+# Data Matching
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.23.0
+recordlinkage==0.16
 
 # Utilities
 python-dotenv==1.0.0
