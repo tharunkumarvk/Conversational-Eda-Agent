@@ -83,44 +83,48 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ===== AUTHENTICATION =====
-from streamlit_login import check_authentication, show_login_page, show_logout_button
-from streamlit_auth import save_user_file, save_chat_history, get_user_chat_history
+# ===== AUTHENTICATION (disabled for deployment — enable later) =====
+AUTH_ENABLED = False  # Set to True when DB is ready
 
-# Check authentication - show login page if not authenticated
-if not check_authentication():
-    show_login_page()
-    st.stop()
+if AUTH_ENABLED:
+    from streamlit_login import check_authentication, show_login_page, show_logout_button
+    from streamlit_auth import save_user_file, save_chat_history, get_user_chat_history
 
-# Show logout button if authenticated
-show_logout_button()
+    if not check_authentication():
+        show_login_page()
+        st.stop()
 
-# ===== NAVIGATION =====
-st.sidebar.markdown("---")
-st.sidebar.title("🧭 Navigation")
+    show_logout_button()
 
-# Initialize page state
-if "current_page" not in st.session_state:
-    st.session_state.current_page = "main"
+    # Navigation
+    st.sidebar.markdown("---")
+    st.sidebar.title("🧭 Navigation")
 
-# Navigation buttons
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    if st.button("🏠 Main App", use_container_width=True, type="primary" if st.session_state.current_page == "main" else "secondary"):
+    if "current_page" not in st.session_state:
         st.session_state.current_page = "main"
-        st.rerun()
-with col2:
-    if st.button("📚 History", use_container_width=True, type="primary" if st.session_state.current_page == "history" else "secondary"):
-        st.session_state.current_page = "history"
-        st.rerun()
 
-st.sidebar.markdown("---")
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button("🏠 Main App", use_container_width=True, type="primary" if st.session_state.current_page == "main" else "secondary"):
+            st.session_state.current_page = "main"
+            st.rerun()
+    with col2:
+        if st.button("📚 History", use_container_width=True, type="primary" if st.session_state.current_page == "history" else "secondary"):
+            st.session_state.current_page = "history"
+            st.rerun()
 
-# If on history page, show history and stop
-if st.session_state.current_page == "history":
-    from streamlit_history import show_user_history
-    show_user_history()
-    st.stop()
+    st.sidebar.markdown("---")
+
+    if st.session_state.current_page == "history":
+        from streamlit_history import show_user_history
+        show_user_history()
+        st.stop()
+
+# Session-based context (always active — works without DB)
+if "session_chat_log" not in st.session_state:
+    st.session_state.session_chat_log = []
+if "session_file_log" not in st.session_state:
+    st.session_state.session_file_log = []
 
 # Custom CSS
 st.markdown("""
@@ -338,22 +342,29 @@ def add_file(df: pd.DataFrame, name: str) -> int:
     }
     st.session_state.last_idx = idx
     
-    # Save to database for history
+    # Track file in session + database (if auth enabled)
     try:
-        import uuid
-        file_id = str(uuid.uuid4())
-        save_user_file(
-            user_id=st.session_state.user_id,
-            file_id=file_id,
-            filename=name,
-            file_path=f"session_{st.session_state.user_id}/{file_id}",
-            file_size=metadata.file_size,
-            rows=df.shape[0],
-            columns=df.shape[1]
-        )
-    except Exception as e:
-        # Don't break the app if saving fails
-        print(f"Failed to save file metadata: {e}")
+        st.session_state.session_file_log.append({
+            "filename": name,
+            "rows": df.shape[0],
+            "columns": df.shape[1],
+            "file_size": metadata.file_size,
+            "timestamp": datetime.now().isoformat()
+        })
+        if AUTH_ENABLED:
+            import uuid
+            file_id = str(uuid.uuid4())
+            save_user_file(
+                user_id=st.session_state.user_id,
+                file_id=file_id,
+                filename=name,
+                file_path=f"session_{st.session_state.user_id}/{file_id}",
+                file_size=metadata.file_size,
+                rows=df.shape[0],
+                columns=df.shape[1]
+            )
+    except Exception:
+        pass
     
     return idx
 
@@ -2002,22 +2013,26 @@ with tab3:
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Save to database for history
+            # Track chat in session + database (if auth enabled)
             try:
-                file_context = None
-                if st.session_state.files:
-                    file_names = [f["metadata"].name for f in st.session_state.files.values()]
-                    file_context = ", ".join(file_names[:3])  # First 3 files
-                
-                save_chat_history(
-                    user_id=st.session_state.user_id,
-                    message=user_input,
-                    response=ai_response,
-                    file_context=file_context
-                )
-            except Exception as e:
-                # Don't break the app if saving fails
-                print(f"Failed to save chat history: {e}")
+                st.session_state.session_chat_log.append({
+                    "question": user_input,
+                    "answer": ai_response[:500],
+                    "timestamp": datetime.now().isoformat()
+                })
+                if AUTH_ENABLED:
+                    file_context = None
+                    if st.session_state.files:
+                        file_names = [f["metadata"].name for f in st.session_state.files.values()]
+                        file_context = ", ".join(file_names[:3])
+                    save_chat_history(
+                        user_id=st.session_state.user_id,
+                        message=user_input,
+                        response=ai_response,
+                        file_context=file_context
+                    )
+            except Exception:
+                pass
             
             # Auto-refresh to show new results
             st.rerun()

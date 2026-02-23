@@ -1,5 +1,4 @@
 # === Requirements for eda_agent_agentic.py (Streamlit EDA App) ===
-# No pinned versions — let pip resolve Python 3.13 compatible wheels
 
 # App Framework
 streamlit
@@ -25,11 +24,6 @@ langchain-core
 langchain-google-genai
 langgraph
 
-# Database & Auth
-sqlalchemy
-psycopg2-binary
-bcrypt
-
 # Fuzzy Matching
 fuzzywuzzy
 python-Levenshtein
@@ -38,3 +32,8 @@ recordlinkage
 # Utilities
 python-dotenv
 openpyxl
+
+# Database & Auth (disabled for now, needed when AUTH_ENABLED=True)
+# sqlalchemy
+# psycopg2-binary
+# bcrypt
