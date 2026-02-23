@@ -83,39 +83,100 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ===== AUTHENTICATION =====
+from streamlit_login import check_authentication, show_login_page, show_logout_button
+from streamlit_auth import save_user_file, save_chat_history, get_user_chat_history
+
+# Check authentication - show login page if not authenticated
+if not check_authentication():
+    show_login_page()
+    st.stop()
+
+# Show logout button if authenticated
+show_logout_button()
+
+# ===== NAVIGATION =====
+st.sidebar.markdown("---")
+st.sidebar.title("🧭 Navigation")
+
+# Initialize page state
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "main"
+
+# Navigation buttons
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    if st.button("🏠 Main App", use_container_width=True, type="primary" if st.session_state.current_page == "main" else "secondary"):
+        st.session_state.current_page = "main"
+        st.rerun()
+with col2:
+    if st.button("📚 History", use_container_width=True, type="primary" if st.session_state.current_page == "history" else "secondary"):
+        st.session_state.current_page = "history"
+        st.rerun()
+
+st.sidebar.markdown("---")
+
+# If on history page, show history and stop
+if st.session_state.current_page == "history":
+    from streamlit_history import show_user_history
+    show_user_history()
+    st.stop()
+
 # Custom CSS
 st.markdown("""
 <style>
     .main-header {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 50%, #EC4899 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
         color: white;
         text-align: center;
         margin-bottom: 2rem;
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
     }
     .tool-card {
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        padding: 1rem;
+        background: #1E1E2E;
+        border: 1px solid #2D2D3D;
+        border-radius: 10px;
+        padding: 1.2rem;
         margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     .success-box {
-        background: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
+        background: #1E3A2E;
+        border: 1px solid #2D5A3E;
+        color: #4ADE80;
         padding: 0.75rem;
-        border-radius: 5px;
+        border-radius: 8px;
         margin: 0.5rem 0;
     }
     .error-box {
-        background: #f8d7da;
-        border: 1px solid #f5c6cb;
-        color: #721c24;
+        background: #3A1E1E;
+        border: 1px solid #5A2D2D;
+        color: #F87171;
         padding: 0.75rem;
-        border-radius: 5px;
+        border-radius: 8px;
         margin: 0.5rem 0;
+    }
+    /* Dark theme enhancements */
+    .stExpander {
+        background: #1E1E2E;
+        border: 1px solid #2D2D3D;
+        border-radius: 8px;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: #1E1E2E;
+        border-radius: 8px;
+        color: #FAFAFA;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+    }
+    div[data-testid="stMetricValue"] {
+        color: #8B5CF6;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -143,9 +204,20 @@ class ProcessingHistory:
 # --- Gemini Configuration ---
 def init_genai():
     """Initialize Google Generative AI with proper error handling"""
+    # Try environment variables first (cleaner, no warnings)
     key = os.getenv("GOOGLE_API_KEY")
+    
+    # Try Streamlit secrets only if env var not found (for deployment)
     if not key:
-        st.error("GOOGLE_API_KEY not found in environment variables!")
+        try:
+            if hasattr(st, "secrets"):
+                secrets_dict = dict(st.secrets)
+                key = secrets_dict.get("GOOGLE_API_KEY")
+        except (FileNotFoundError, KeyError, Exception):
+            pass
+    
+    if not key:
+        st.error("GOOGLE_API_KEY not found in environment variables or Streamlit secrets!")
         return None
     try:
         genai.configure(api_key=key)
@@ -265,6 +337,24 @@ def add_file(df: pd.DataFrame, name: str) -> int:
         "metadata": metadata
     }
     st.session_state.last_idx = idx
+    
+    # Save to database for history
+    try:
+        import uuid
+        file_id = str(uuid.uuid4())
+        save_user_file(
+            user_id=st.session_state.user_id,
+            file_id=file_id,
+            filename=name,
+            file_path=f"session_{st.session_state.user_id}/{file_id}",
+            file_size=metadata.file_size,
+            rows=df.shape[0],
+            columns=df.shape[1]
+        )
+    except Exception as e:
+        # Don't break the app if saving fails
+        print(f"Failed to save file metadata: {e}")
+    
     return idx
 
 def get_file_by_ref(ref) -> Tuple[Optional[pd.DataFrame], Optional[str], Optional[int]]:
@@ -1912,6 +2002,23 @@ with tab3:
                 "timestamp": datetime.now().isoformat()
             })
             
+            # Save to database for history
+            try:
+                file_context = None
+                if st.session_state.files:
+                    file_names = [f["metadata"].name for f in st.session_state.files.values()]
+                    file_context = ", ".join(file_names[:3])  # First 3 files
+                
+                save_chat_history(
+                    user_id=st.session_state.user_id,
+                    message=user_input,
+                    response=ai_response,
+                    file_context=file_context
+                )
+            except Exception as e:
+                # Don't break the app if saving fails
+                print(f"Failed to save chat history: {e}")
+            
             # Auto-refresh to show new results
             st.rerun()
         
@@ -2104,15 +2211,16 @@ with tab5:
 {context}
 
 Format as numbered list with brief explanations."""
-                        response = GENAI.models.generate_content(
-                            model="gemini-2.5-flash",
+                        # Create model instance first
+                        model = GENAI.GenerativeModel("gemini-2.5-flash")
+                        response = model.generate_content(
                             contents=[{
                                 "role": "user",
                                 "parts": [{"text": prompt}]
                             }]
                         )
                         if response.candidates and response.candidates[0].content.parts:
-                            report_content.append(response.text)
+                            report_content.append(response.candidates[0].content.parts[0].text)
                         else:
                             report_content.append("No recommendations could be generated at this time.")
                     except Exception as e:

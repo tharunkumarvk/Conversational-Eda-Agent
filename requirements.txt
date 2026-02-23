@@ -7,6 +7,8 @@ python-multipart==0.0.6
 sqlalchemy==2.0.25
 alembic==1.13.1
 psycopg2-binary==2.9.9  # PostgreSQL adapter for cloud databases
+pymysql==1.1.0  # MySQL adapter for local/cloud MySQL
+cryptography==41.0.7  # Required for MySQL SSL connections
 supabase==2.9.0  # Supabase Python client for Storage
 websockets==14.0  # WebSocket client for Supabase realtime
 
@@ -33,6 +35,7 @@ langgraph==0.2.60
 slowapi==0.1.9
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.1.2  # Password hashing for authentication
 python-dotenv==1.0.0
 
 # Data Handling
