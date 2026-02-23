@@ -30,63 +30,76 @@ def get_config(key: str, default: str = "") -> str:
     if env_value:
         return env_value
     
-    # Try Streamlit secrets only if env var not found (for deployment)
+    # Try Streamlit secrets directly (for Streamlit Cloud deployment)
     try:
-        if hasattr(st, "secrets"):
-            secrets_dict = dict(st.secrets)
-            if key in secrets_dict:
-                return secrets_dict[key]
-    except (KeyError, FileNotFoundError, Exception):
+        val = st.secrets.get(key, None)
+        if val is not None:
+            return str(val)
+    except Exception:
         pass
     
     return default
 
-DATABASE_URL = get_config("DATABASE_URL", "sqlite:///./streamlit_users.db")
-
-# Handle special characters in password by building URL from parts
-# This fixes the @ symbol in passwords breaking URL parsing
-DB_HOST = get_config("DB_HOST", "")
-DB_USER = get_config("DB_USER", "")
-DB_PASSWORD = get_config("DB_PASSWORD", "")
-DB_NAME = get_config("DB_NAME", "")
-DB_PORT = get_config("DB_PORT", "5432")
-
-if DB_HOST and DB_USER and DB_PASSWORD:
-    # Build URL from individual components (handles special chars in password)
+# Build database connection
+def _build_engine():
+    """Build SQLAlchemy engine from available config"""
     from sqlalchemy.engine import URL
-    DATABASE_URL = URL.create(
-        drivername="postgresql",
-        username=DB_USER,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=int(DB_PORT),
-        database=DB_NAME or "postgres"
-    )
+    
+    # Check for individual DB components first (handles special chars in password)
+    db_host = get_config("DB_HOST", "")
+    db_user = get_config("DB_USER", "")
+    db_password = get_config("DB_PASSWORD", "")
+    db_name = get_config("DB_NAME", "postgres")
+    db_port = get_config("DB_PORT", "5432")
+    
+    print(f"[DB Debug] DB_HOST={'SET' if db_host else 'EMPTY'}, DB_USER={'SET' if db_user else 'EMPTY'}, DB_PASSWORD={'SET' if db_password else 'EMPTY'}")
+    
+    if db_host and db_user and db_password:
+        print(f"[DB Debug] Using component-based PostgreSQL connection to {db_host}")
+        db_url = URL.create(
+            drivername="postgresql",
+            username=db_user,
+            password=db_password,
+            host=db_host,
+            port=int(db_port),
+            database=db_name
+        )
+        return create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            pool_size=5,
+            max_overflow=10
+        )
+    
+    # Fallback to DATABASE_URL
+    database_url = get_config("DATABASE_URL", "sqlite:///./streamlit_users.db")
+    print(f"[DB Debug] Using DATABASE_URL: {database_url[:40]}...")
+    
+    if database_url.startswith("sqlite"):
+        return create_engine(
+            database_url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
+    elif database_url.startswith("mysql"):
+        return create_engine(
+            database_url,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+            pool_size=5,
+            max_overflow=10
+        )
+    else:  # PostgreSQL
+        return create_engine(
+            database_url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            pool_size=5,
+            max_overflow=10
+        )
 
-# Create engine based on database type
-db_url_str = str(DATABASE_URL)
-if db_url_str.startswith("sqlite"):
-    engine = create_engine(
-        DATABASE_URL, 
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool
-    )
-elif db_url_str.startswith("mysql"):
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=3600,
-        pool_size=5,
-        max_overflow=10
-    )
-else:  # PostgreSQL
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        pool_size=5,
-        max_overflow=10
-    )
+engine = _build_engine()
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
