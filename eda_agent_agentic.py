@@ -72,9 +72,45 @@ except ImportError:
 # Load environment
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
 except:
     pass
+
+# ===== AWS Integration =====
+AWS_AVAILABLE = False
+try:
+    from aws.config import aws_config
+    from aws.dynamodb import dynamo_db
+    from aws.cognito import cognito_auth
+    from aws.cloudwatch_logger import cw_logger
+    from aws.ssm import ssm_config
+    from aws.sqs_client import sqs_client
+    from aws.lambda_client import lambda_client
+    from aws.s3_storage import s3_storage
+    AWS_AVAILABLE = aws_config.aws_enabled
+    if AWS_AVAILABLE:
+        print(f"✅ AWS services loaded (region: {aws_config.region})")
+        cw_logger.info("EDA Agent started", services=str(aws_config.get_status()))
+except ImportError as e:
+    print(f"⚠️ AWS module not available: {e}")
+    aws_config = None
+    dynamo_db = None
+    cognito_auth = None
+    cw_logger = None
+    ssm_config = None
+    sqs_client = None
+    lambda_client = None
+    s3_storage = None
+except Exception as e:
+    print(f"⚠️ AWS initialization error: {e}")
+    aws_config = None
+    dynamo_db = None
+    cognito_auth = None
+    cw_logger = None
+    ssm_config = None
+    sqs_client = None
+    lambda_client = None
+    s3_storage = None
 
 # Page config
 st.set_page_config(
@@ -83,10 +119,90 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ===== AUTHENTICATION (disabled for deployment — enable later) =====
-AUTH_ENABLED = False  # Set to True when DB is ready
+# ===== AUTHENTICATION =====
+# Auth mode: 'cognito' (AWS), 'local' (SQLAlchemy/bcrypt), or False (disabled)
+AUTH_MODE = os.getenv("AUTH_MODE", "false").lower()
+AUTH_ENABLED = AUTH_MODE in ("cognito", "local", "true")
+USE_COGNITO = AUTH_MODE == "cognito" and AWS_AVAILABLE and cognito_auth and cognito_auth.available
 
-if AUTH_ENABLED:
+if AUTH_ENABLED and USE_COGNITO:
+    # === AWS Cognito Authentication ===
+    if "cognito_authenticated" not in st.session_state:
+        st.session_state.cognito_authenticated = False
+        st.session_state.cognito_tokens = {}
+        st.session_state.cognito_user = {}
+    
+    if not st.session_state.cognito_authenticated:
+        st.markdown("""<div style='max-width:500px;margin:0 auto;text-align:center;padding:2rem;'>
+        <h1>🔐 EDA Agent Login</h1></div>""", unsafe_allow_html=True)
+        
+        auth_tab1, auth_tab2 = st.tabs(["Login", "Sign Up"])
+        with auth_tab1:
+            email = st.text_input("Email", key="cognito_login_email")
+            password = st.text_input("Password", type="password", key="cognito_login_pw")
+            if st.button("Sign In", type="primary", use_container_width=True):
+                result = cognito_auth.sign_in(email, password)
+                if result["success"]:
+                    st.session_state.cognito_authenticated = True
+                    st.session_state.cognito_tokens = {
+                        "access_token": result["access_token"],
+                        "id_token": result["id_token"],
+                        "refresh_token": result["refresh_token"],
+                    }
+                    st.session_state.cognito_user = result.get("user_info", {})
+                    st.session_state.user_id = result["user_info"].get("sub", "")
+                    if cw_logger:
+                        cw_logger.info(f"User signed in: {email}")
+                    st.rerun()
+                else:
+                    st.error(result["message"])
+        
+        with auth_tab2:
+            new_email = st.text_input("Email", key="cognito_signup_email")
+            new_name = st.text_input("Name", key="cognito_signup_name")
+            new_password = st.text_input("Password", type="password", key="cognito_signup_pw")
+            confirm_pw = st.text_input("Confirm Password", type="password", key="cognito_signup_pw2")
+            if st.button("Create Account", use_container_width=True):
+                if new_password != confirm_pw:
+                    st.error("Passwords don't match")
+                else:
+                    result = cognito_auth.sign_up(new_email, new_password, new_name)
+                    if result["success"]:
+                        st.success(result["message"])
+                        st.info("Enter the verification code sent to your email:")
+                        st.session_state._cognito_pending_email = new_email
+                    else:
+                        st.error(result["message"])
+            
+            # Verification code input
+            if st.session_state.get("_cognito_pending_email"):
+                code = st.text_input("Verification Code", key="cognito_verify_code")
+                if st.button("Verify Email"):
+                    result = cognito_auth.confirm_sign_up(
+                        st.session_state._cognito_pending_email, code)
+                    if result["success"]:
+                        st.success("Email verified! You can now sign in.")
+                        del st.session_state._cognito_pending_email
+                    else:
+                        st.error(result["message"])
+        
+        st.stop()
+    
+    # Logout button
+    if st.sidebar.button("🚪 Logout"):
+        if st.session_state.cognito_tokens.get("access_token"):
+            cognito_auth.sign_out(st.session_state.cognito_tokens["access_token"])
+        st.session_state.cognito_authenticated = False
+        st.session_state.cognito_tokens = {}
+        st.session_state.cognito_user = {}
+        st.rerun()
+    
+    user_display = st.session_state.cognito_user.get("name") or st.session_state.cognito_user.get("email", "User")
+    st.sidebar.markdown(f"👤 **{user_display}**")
+    st.sidebar.markdown("---")
+
+elif AUTH_ENABLED and not USE_COGNITO:
+    # === Local bcrypt + DynamoDB/SQLAlchemy Authentication ===
     from streamlit_login import check_authentication, show_login_page, show_logout_button
     from streamlit_auth import save_user_file, save_chat_history, get_user_chat_history
 
@@ -1551,6 +1667,44 @@ if uploaded_files:
                 if df is not None:
                     idx = add_file(df, uploaded_file.name)
                     st.sidebar.success(f"✅ Loaded: {uploaded_file.name} (ID: {idx})")
+                    
+                    # AWS: Upload to S3 and track in DynamoDB/CloudWatch
+                    if AWS_AVAILABLE:
+                        try:
+                            import uuid as _uuid
+                            file_id = str(_uuid.uuid4())
+                            user_id = st.session_state.get("user_id", "anonymous")
+                            
+                            # Upload to S3
+                            if s3_storage and s3_storage.available:
+                                uploaded_file.seek(0)
+                                s3_key = f"{user_id}/{file_id}_{uploaded_file.name}"
+                                success, key_or_err = s3_storage.upload_file(
+                                    uploaded_file.read(), s3_key)
+                                if success:
+                                    st.session_state.files[idx]["s3_key"] = s3_key
+                            
+                            # Track in DynamoDB
+                            if dynamo_db and dynamo_db.available:
+                                dynamo_db.save_file_metadata(
+                                    user_id=user_id,
+                                    file_id=file_id,
+                                    filename=uploaded_file.name,
+                                    file_path=st.session_state.files[idx].get("s3_key", ""),
+                                    file_size=st.session_state.files[idx]["metadata"].file_size,
+                                    rows=df.shape[0],
+                                    columns=df.shape[1],
+                                    s3_key=st.session_state.files[idx].get("s3_key", "")
+                                )
+                            
+                            # CloudWatch metric
+                            if cw_logger and cw_logger.available:
+                                cw_logger.track_file_upload(
+                                    uploaded_file.name,
+                                    st.session_state.files[idx]["metadata"].file_size
+                                )
+                        except Exception as aws_err:
+                            print(f"AWS tracking error (non-fatal): {aws_err}")
 
 # Display uploaded files
 if st.session_state.files:
@@ -1973,27 +2127,54 @@ with tab3:
                         result = LANGGRAPH_AGENT.invoke(initial_state)
                         
                         # Extract the final AI response
-                        # Priority: 1) Final AIMessage with content, 2) Last ToolMessage, 3) Any message with content
+                        # Priority: 1) Final AIMessage with text content and no tool_calls
+                        #           2) Tool results from ToolMessages
+                        #           3) AIMessage content even if it also had tool_calls
+                        #           4) Fallback to basic Gemini
                         ai_response = None
                         tool_results = []
+                        ai_with_tools_content = None
                         
                         for msg in reversed(result["messages"]):
                             # Collect tool results
-                            if hasattr(msg, '__class__') and msg.__class__.__name__ == 'ToolMessage':
+                            if isinstance(msg, ToolMessage):
                                 if msg.content:
                                     tool_results.insert(0, msg.content)
-                            # Look for final AI summary
-                            elif hasattr(msg, 'content') and msg.content and isinstance(msg.content, str):
-                                # Check if it's an AIMessage without tool_calls (final response)
-                                if not (hasattr(msg, 'tool_calls') and msg.tool_calls):
-                                    ai_response = msg.content
+                            # Only consider AIMessage (never HumanMessage)
+                            elif isinstance(msg, AIMessage):
+                                # Extract text content (handle str or list of parts)
+                                text = ""
+                                if isinstance(msg.content, str):
+                                    text = msg.content.strip()
+                                elif isinstance(msg.content, list):
+                                    text = " ".join(
+                                        p.get("text", "") if isinstance(p, dict) else str(p)
+                                        for p in msg.content
+                                    ).strip()
+                                
+                                has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
+                                
+                                if text and not has_tool_calls:
+                                    # Best case: final AI summary with no tool calls
+                                    ai_response = text
                                     break
+                                elif text and has_tool_calls and not ai_with_tools_content:
+                                    # Backup: AI message that also had tool calls
+                                    ai_with_tools_content = text
                         
-                        # If no final AI summary, use tool results
-                        if not ai_response and tool_results:
-                            ai_response = "\n\n".join(tool_results)
-                        elif not ai_response:
-                            ai_response = "✅ Task completed successfully!"
+                        # Build final response with fallback chain
+                        if not ai_response:
+                            if tool_results:
+                                ai_response = "\n\n".join(tool_results)
+                            elif ai_with_tools_content:
+                                ai_response = ai_with_tools_content
+                            else:
+                                # Last resort: ask Gemini directly for a summary
+                                context = {
+                                    "files": st.session_state.files,
+                                    "processed_files": st.session_state.preprocessed_files
+                                }
+                                ai_response = ask_gemini_basic(user_input, context)
                         
                     except Exception as e:
                         st.error(f"Agent error: {str(e)}")
@@ -2013,18 +2194,33 @@ with tab3:
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Track chat in session + database (if auth enabled)
+            # Track chat in session + database (if auth enabled) + AWS
             try:
                 st.session_state.session_chat_log.append({
                     "question": user_input,
                     "answer": ai_response[:500],
                     "timestamp": datetime.now().isoformat()
                 })
-                if AUTH_ENABLED:
-                    file_context = None
-                    if st.session_state.files:
-                        file_names = [f["metadata"].name for f in st.session_state.files.values()]
-                        file_context = ", ".join(file_names[:3])
+                
+                file_context = None
+                if st.session_state.files:
+                    file_names = [f["metadata"].name for f in st.session_state.files.values()]
+                    file_context = ", ".join(file_names[:3])
+                
+                # Save to AWS DynamoDB
+                if AWS_AVAILABLE and dynamo_db and dynamo_db.available:
+                    user_id = st.session_state.get("user_id", "anonymous")
+                    dynamo_db.save_chat(
+                        user_id=user_id,
+                        message=user_input,
+                        response=ai_response,
+                        file_context=file_context
+                    )
+                    if cw_logger and cw_logger.available:
+                        cw_logger.track_chat(user_id)
+                
+                # Fallback: Save to local DB
+                elif AUTH_ENABLED and not USE_COGNITO:
                     save_chat_history(
                         user_id=st.session_state.user_id,
                         message=user_input,
@@ -2343,6 +2539,30 @@ if st.session_state.files and st.session_state.last_idx is not None:
                 st.session_state.plot_cache[cache_key] = plots
                 st.sidebar.success("✅ Plots created!")
 
+# AWS Status Panel
+if AWS_AVAILABLE and aws_config:
+    with st.sidebar.expander("☁️ AWS Services", expanded=False):
+        status = aws_config.get_status()
+        st.markdown(f"**Region:** `{status['region']}`")
+        service_icons = {
+            'dynamodb': ('🗄️ DynamoDB', status.get('dynamodb', False)),
+            'cognito': ('🔐 Cognito', status.get('cognito', False)),
+            'cloudwatch': ('📊 CloudWatch', status.get('cloudwatch', False)),
+            'ssm': ('🔑 SSM', status.get('ssm', False)),
+            'sqs': ('📨 SQS', status.get('sqs', False)),
+            'lambda': ('⚡ Lambda', status.get('lambda', False)),
+            's3': ('📦 S3', status.get('s3', False)),
+        }
+        for key, (label, enabled) in service_icons.items():
+            icon = "✅" if enabled else "⬜"
+            st.markdown(f"{icon} {label}")
+        
+        # Show SQS queue stats if available
+        if sqs_client and sqs_client.available:
+            stats = sqs_client.get_queue_stats()
+            if stats:
+                st.markdown(f"**Queue:** {stats.get('pending', 0)} pending, {stats.get('in_flight', 0)} processing")
+
 # Debug panel (only show if in development)
 if st.sidebar.checkbox("🔧 Debug Mode", value=False):
     st.sidebar.markdown("### 🔍 Debug Info")
@@ -2351,6 +2571,11 @@ if st.sidebar.checkbox("🔧 Debug Mode", value=False):
         st.write("Processed:", list(st.session_state.preprocessed_files.keys()))
         st.write("Plot Cache:", list(st.session_state.plot_cache.keys()))
         st.write("Last Index:", st.session_state.last_idx)
+        if AWS_AVAILABLE:
+            st.write("AWS Region:", aws_config.region if aws_config else "N/A")
+            st.write("DynamoDB:", dynamo_db.available if dynamo_db else False)
+            st.write("Cognito:", cognito_auth.available if cognito_auth else False)
+            st.write("S3:", s3_storage.available if s3_storage else False)
 
 # Auto-refresh option
 if st.sidebar.button("🔄 Refresh App"):
