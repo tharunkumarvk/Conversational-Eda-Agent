@@ -73,7 +73,7 @@ except ImportError:
 try:
     from dotenv import load_dotenv
     load_dotenv(override=True)
-except:
+except Exception:
     pass
 
 # ===== AWS Integration =====
@@ -382,7 +382,9 @@ Provide a helpful response about what analysis or operations should be performed
         )
         
         # ✅ Safely extract text
-        return response.candidates[0].content.parts[0].text if response.candidates else "No response generated"
+        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            return response.candidates[0].content.parts[0].text
+        return "No response generated"
     
     except Exception as e:
         return f"❌ Error calling Gemini: {str(e)}"
@@ -455,6 +457,8 @@ Return JSON with these keys (omit any you want to leave at default):
 
 Choose what is best for THIS dataset. Respond with JSON only."""
         resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
+        if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
+            raise ValueError("Gemini returned empty response")
         raw = resp.candidates[0].content.parts[0].text.strip()
         # strip markdown fences if present
         if raw.startswith("```"):
@@ -505,6 +509,8 @@ Return JSON with these keys (include ALL that make sense for this dataset):
 
 Pick what is BEST for this specific data. Respond with JSON only."""
         resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
+        if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
+            raise ValueError("Gemini returned empty response")
         raw = resp.candidates[0].content.parts[0].text.strip()
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -541,6 +547,8 @@ Each element should be a JSON object with keys:
 
 Choose plots that reveal the MOST insight for this specific dataset. Return JSON array only."""
         resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
+        if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
+            raise ValueError("Gemini returned empty response")
         raw = resp.candidates[0].content.parts[0].text.strip()
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -881,7 +889,7 @@ def generate_data_profile(df: pd.DataFrame) -> Dict[str, Any]:
                         outliers[col] = int(((df[col] < lower_bound) | (df[col] > upper_bound)).sum())
                     else:
                         outliers[col] = 0
-                except:
+                except Exception:
                     outliers[col] = 0
             profile["outliers"] = outliers
         
@@ -898,7 +906,7 @@ def generate_data_profile(df: pd.DataFrame) -> Dict[str, Any]:
                         "most_frequent": str(mode_val),
                         "frequency": df[col].value_counts().head().to_dict()
                     }
-                except:
+                except Exception:
                     cat_summary[col] = {"unique_count": 0, "most_frequent": "N/A", "frequency": {}}
             profile["categorical_summary"] = cat_summary
         
@@ -922,7 +930,7 @@ def generate_data_profile(df: pd.DataFrame) -> Dict[str, Any]:
             quality_factors.append(feature_richness)
             
             profile["data_quality_score"] = sum(quality_factors)
-        except:
+        except Exception:
             profile["data_quality_score"] = 50.0  # Default score
         
         return profile
@@ -1068,8 +1076,13 @@ def enhanced_preprocessing(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd
     actions = []
     
     try:
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        categorical_cols = df.select_dtypes(include=['object', 'category', 'bool']).columns.tolist()
+        # Helper to always get fresh column lists from the current DataFrame state
+        def _refresh_cols(frame):
+            nc = frame.select_dtypes(include=[np.number]).columns.tolist()
+            cc = frame.select_dtypes(include=['object', 'category', 'bool']).columns.tolist()
+            return nc, cc
+
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
         
         # 1. Handle missing values - expanded strategies
         if params.get('handle_missing', True):
@@ -1077,7 +1090,7 @@ def enhanced_preprocessing(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd
             if missing_strategy in ['mean', 'median', 'mode']:
                 imputer = SimpleImputer(strategy=missing_strategy)
                 for col in numeric_cols:
-                    if df[col].isnull().sum() > 0:
+                    if df_processed[col].isnull().sum() > 0:
                         df_processed[col] = imputer.fit_transform(df_processed[[col]])
                         actions.append(f"Filled {col} missing with {missing_strategy}")
             elif missing_strategy == 'knn':
@@ -1096,8 +1109,8 @@ def enhanced_preprocessing(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd
             cat_strategy = params.get('cat_missing_strategy', 'mode')  # mode, constant
             if cat_strategy == 'mode':
                 for col in categorical_cols:
-                    if df[col].isnull().sum() > 0:
-                        mode_val = df[col].mode().iloc[0] if not df[col].mode().empty else 'Unknown'
+                    if df_processed[col].isnull().sum() > 0:
+                        mode_val = df_processed[col].mode().iloc[0] if not df_processed[col].mode().empty else 'Unknown'
                         df_processed[col] = df_processed[col].fillna(mode_val)
                         actions.append(f"Filled {col} missing with mode ({mode_val})")
             elif cat_strategy == 'constant':
@@ -1106,6 +1119,7 @@ def enhanced_preprocessing(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd
                 actions.append(f"Filled categorical missing with constant '{fill_val}'")
         
         # 2. Outlier handling - expanded
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
         if params.get('handle_outliers', False):
             outlier_method = params.get('outlier_method', 'iqr')  # iqr, zscore, isolation_forest
             outlier_action = params.get('outlier_action', 'cap')  # cap, remove, transform (e.g., log)
@@ -1173,21 +1187,27 @@ def enhanced_preprocessing(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd
                     actions.append(f"Outlier handling failed for {col}: {str(e)}")
         
         # 3. Scaling/Normalization - expanded
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
         scale_type = params.get('scale_type', None)  # minmax, standard, robust, none
-        if scale_type == 'minmax':
-            scaler = MinMaxScaler()
-            df_processed[numeric_cols] = scaler.fit_transform(df_processed[numeric_cols])
-            actions.append("Applied Min-Max scaling")
-        elif scale_type == 'standard':
-            scaler = StandardScaler()
-            df_processed[numeric_cols] = scaler.fit_transform(df_processed[numeric_cols])
-            actions.append("Applied Standard scaling")
-        elif scale_type == 'robust':
-            scaler = RobustScaler()
-            df_processed[numeric_cols] = scaler.fit_transform(df_processed[numeric_cols])
-            actions.append("Applied Robust scaling")
+        if scale_type and scale_type != 'none' and len(numeric_cols) > 0:
+            try:
+                if scale_type == 'minmax':
+                    scaler = MinMaxScaler()
+                    df_processed[numeric_cols] = scaler.fit_transform(df_processed[numeric_cols])
+                    actions.append("Applied Min-Max scaling")
+                elif scale_type == 'standard':
+                    scaler = StandardScaler()
+                    df_processed[numeric_cols] = scaler.fit_transform(df_processed[numeric_cols])
+                    actions.append("Applied Standard scaling")
+                elif scale_type == 'robust':
+                    scaler = RobustScaler()
+                    df_processed[numeric_cols] = scaler.fit_transform(df_processed[numeric_cols])
+                    actions.append("Applied Robust scaling")
+            except Exception as e:
+                actions.append(f"Scaling skipped: {str(e)}")
         
         # 4. Encoding - expanded
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
         if params.get('encode_categoricals', False):
             encode_method = params.get('encode_method', 'onehot')  # onehot, label, ordinal, binary, frequency, target
             max_cat = params.get('max_categories', 10)
@@ -1222,85 +1242,111 @@ def enhanced_preprocessing(df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[pd
                         actions.append(f"Target encoded {col}")
         
         # 5. Dimensionality Reduction
-        if params.get('reduce_dimensions', False):
-            red_method = params.get('red_method', 'pca')  # pca, tsne, svd, lda
-            n_components = params.get('n_components', 2)
-            if red_method == 'pca':
-                pca = PCA(n_components=n_components)
-                reduced = pca.fit_transform(df_processed[numeric_cols])
-                reduced_cols = [f'PCA_{i+1}' for i in range(n_components)]
-                df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
-                actions.append(f"Applied PCA reduction to {n_components} components")
-            elif red_method == 'tsne':
-                tsne = TSNE(n_components=n_components)
-                reduced = tsne.fit_transform(df_processed[numeric_cols])
-                reduced_cols = [f'TSNE_{i+1}' for i in range(n_components)]
-                df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
-                actions.append(f"Applied t-SNE reduction to {n_components} components")
-            elif red_method == 'svd':
-                svd = TruncatedSVD(n_components=n_components)
-                reduced = svd.fit_transform(df_processed[numeric_cols])
-                reduced_cols = [f'SVD_{i+1}' for i in range(n_components)]
-                df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
-                actions.append(f"Applied SVD reduction to {n_components} components")
-            elif red_method == 'lda' and 'target_col' in params:
-                lda = LDA(n_components=n_components)
-                reduced = lda.fit_transform(df_processed[numeric_cols], df_processed[params['target_col']])
-                reduced_cols = [f'LDA_{i+1}' for i in range(n_components)]
-                df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
-                actions.append(f"Applied LDA reduction to {n_components} components")
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
+        if params.get('reduce_dimensions', False) and len(numeric_cols) >= 2:
+            try:
+                red_method = params.get('red_method', 'pca')  # pca, tsne, svd, lda
+                n_components = min(params.get('n_components', 2), len(numeric_cols))
+                if n_components < 1:
+                    n_components = 1
+                if red_method == 'pca':
+                    pca = PCA(n_components=n_components)
+                    reduced = pca.fit_transform(df_processed[numeric_cols])
+                    reduced_cols = [f'PCA_{i+1}' for i in range(n_components)]
+                    df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
+                    actions.append(f"Applied PCA reduction to {n_components} components")
+                elif red_method == 'tsne':
+                    tsne = TSNE(n_components=min(n_components, 3))
+                    reduced = tsne.fit_transform(df_processed[numeric_cols])
+                    reduced_cols = [f'TSNE_{i+1}' for i in range(reduced.shape[1])]
+                    df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
+                    actions.append(f"Applied t-SNE reduction to {reduced.shape[1]} components")
+                elif red_method == 'svd':
+                    svd = TruncatedSVD(n_components=n_components)
+                    reduced = svd.fit_transform(df_processed[numeric_cols])
+                    reduced_cols = [f'SVD_{i+1}' for i in range(n_components)]
+                    df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
+                    actions.append(f"Applied SVD reduction to {n_components} components")
+                elif red_method == 'lda' and 'target_col' in params:
+                    lda = LDA(n_components=n_components)
+                    reduced = lda.fit_transform(df_processed[numeric_cols], df_processed[params['target_col']])
+                    reduced_cols = [f'LDA_{i+1}' for i in range(n_components)]
+                    df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(reduced, columns=reduced_cols, index=df_processed.index)], axis=1)
+                    actions.append(f"Applied LDA reduction to {n_components} components")
+            except Exception as e:
+                actions.append(f"Dimensionality reduction skipped: {str(e)}")
         
         # 6. Feature Selection
-        if params.get('feature_selection', False):
-            sel_method = params.get('sel_method', 'variance')  # variance, kbest, rfe, importance
-            if sel_method == 'variance':
-                selector = VarianceThreshold(threshold=params.get('var_threshold', 0.0))
-                df_processed[numeric_cols] = selector.fit_transform(df_processed[numeric_cols])
-                selected_cols = [numeric_cols[i] for i in selector.get_support(indices=True)]
-                df_processed = df_processed[selected_cols + categorical_cols]
-                actions.append(f"Selected features with variance > {params.get('var_threshold', 0.0)}")
-            elif sel_method == 'kbest' and 'target_col' in params:
-                k = 'all' if params.get('k_best', 'all') == 'all' else int(params.get('k_best', 'all'))
-                selector = SelectKBest(score_func=chi2, k=k)
-                selector.fit(df_processed[numeric_cols], df_processed[params['target_col']])
-                selected_cols = [numeric_cols[i] for i in selector.get_support(indices=True)]
-                df_processed = df_processed[selected_cols + categorical_cols]
-                actions.append(f"Selected top {k} features using chi2")
-            elif sel_method == 'importance' and 'target_col' in params:
-                model = RandomForestClassifier()
-                model.fit(df_processed[numeric_cols], df_processed[params['target_col']])
-                importances = model.feature_importances_
-                threshold = params.get('imp_threshold', 0.01)
-                selected = [col for col, imp in zip(numeric_cols, importances) if imp >= threshold]
-                df_processed = df_processed[selected + categorical_cols]
-                actions.append(f"Selected features with importance >= {threshold}")
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
+        if params.get('feature_selection', False) and len(numeric_cols) > 0:
+            try:
+                sel_method = params.get('sel_method', 'variance')  # variance, kbest, rfe, importance
+                if sel_method == 'variance':
+                    selector = VarianceThreshold(threshold=params.get('var_threshold', 0.0))
+                    selected_data = selector.fit_transform(df_processed[numeric_cols])
+                    selected_cols = [numeric_cols[i] for i in selector.get_support(indices=True)]
+                    remaining_cols = [c for c in df_processed.columns if c not in numeric_cols or c in selected_cols]
+                    df_processed = df_processed[remaining_cols]
+                    actions.append(f"Selected features with variance > {params.get('var_threshold', 0.0)}")
+                elif sel_method == 'kbest' and 'target_col' in params:
+                    k = 'all' if params.get('k_best', 'all') == 'all' else int(params.get('k_best', 'all'))
+                    selector = SelectKBest(score_func=chi2, k=k)
+                    selector.fit(df_processed[numeric_cols], df_processed[params['target_col']])
+                    selected_cols = [numeric_cols[i] for i in selector.get_support(indices=True)]
+                    remaining_cols = [c for c in df_processed.columns if c not in numeric_cols or c in selected_cols]
+                    df_processed = df_processed[remaining_cols]
+                    actions.append(f"Selected top {k} features using chi2")
+                elif sel_method == 'importance' and 'target_col' in params:
+                    model = RandomForestClassifier()
+                    model.fit(df_processed[numeric_cols], df_processed[params['target_col']])
+                    importances = model.feature_importances_
+                    threshold = params.get('imp_threshold', 0.01)
+                    selected = [col for col, imp in zip(numeric_cols, importances) if imp >= threshold]
+                    remaining_cols = [c for c in df_processed.columns if c not in numeric_cols or c in selected]
+                    df_processed = df_processed[remaining_cols]
+                    actions.append(f"Selected features with importance >= {threshold}")
+            except Exception as e:
+                actions.append(f"Feature selection skipped: {str(e)}")
         
         # 7. Handling Imbalanced Data
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
         if params.get('handle_imbalance', False) and 'target_col' in params:
-            imb_method = params.get('imb_method', 'smote')  # smote, oversample, undersample
-            X = df_processed.drop(params['target_col'], axis=1)
-            y = df_processed[params['target_col']]
-            if imb_method == 'smote':
-                sampler = SMOTE()
-            elif imb_method == 'undersample':
-                sampler = RandomUnderSampler()
-            X_res, y_res = sampler.fit_resample(X, y)
-            df_processed = pd.concat([X_res, y_res], axis=1)
-            actions.append(f"Applied {imb_method} for class imbalance")
+            try:
+                target_col = params['target_col']
+                if target_col in df_processed.columns:
+                    imb_method = params.get('imb_method', 'smote')  # smote, oversample, undersample
+                    X = df_processed.drop(target_col, axis=1)
+                    y = df_processed[target_col]
+                    if imb_method == 'smote':
+                        sampler = SMOTE()
+                    elif imb_method == 'undersample':
+                        sampler = RandomUnderSampler()
+                    else:
+                        sampler = SMOTE()
+                    X_res, y_res = sampler.fit_resample(X, y)
+                    df_processed = pd.concat([X_res, y_res], axis=1)
+                    actions.append(f"Applied {imb_method} for class imbalance")
+            except Exception as e:
+                actions.append(f"Imbalance handling skipped: {str(e)}")
         
         # 8. Feature Engineering (basic)
-        if params.get('feature_engineering', False):
-            if params.get('polynomial', False):
-                from sklearn.preprocessing import PolynomialFeatures
-                poly = PolynomialFeatures(degree=params.get('poly_degree', 2), include_bias=False)
-                poly_features = poly.fit_transform(df_processed[numeric_cols])
-                poly_cols = poly.get_feature_names_out(numeric_cols)
-                df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(poly_features, columns=poly_cols, index=df_processed.index)], axis=1)
-                actions.append(f"Added polynomial features (degree {params.get('poly_degree', 2)})")
-            if params.get('binning', False):
-                for col in params.get('bin_cols', []):
-                    df_processed[col + '_binned'] = pd.qcut(df_processed[col], q=params.get('bins', 5), labels=False)
-                    actions.append(f"Binned {col} into {params.get('bins', 5)} bins")
+        numeric_cols, categorical_cols = _refresh_cols(df_processed)
+        if params.get('feature_engineering', False) and len(numeric_cols) > 0:
+            try:
+                if params.get('polynomial', False):
+                    from sklearn.preprocessing import PolynomialFeatures
+                    poly = PolynomialFeatures(degree=params.get('poly_degree', 2), include_bias=False)
+                    poly_features = poly.fit_transform(df_processed[numeric_cols])
+                    poly_cols = poly.get_feature_names_out(numeric_cols)
+                    df_processed = pd.concat([df_processed.drop(numeric_cols, axis=1), pd.DataFrame(poly_features, columns=poly_cols, index=df_processed.index)], axis=1)
+                    actions.append(f"Added polynomial features (degree {params.get('poly_degree', 2)})")
+                if params.get('binning', False):
+                    for col in params.get('bin_cols', []):
+                        if col in df_processed.columns:
+                            df_processed[col + '_binned'] = pd.qcut(df_processed[col], q=params.get('bins', 5), labels=False, duplicates='drop')
+                            actions.append(f"Binned {col} into {params.get('bins', 5)} bins")
+            except Exception as e:
+                actions.append(f"Feature engineering skipped: {str(e)}")
         
         return df_processed, actions
     
@@ -1566,7 +1612,7 @@ if LANGGRAPH_AVAILABLE and GENAI:
             # Parse k_best if it's numeric
             try:
                 k_best_parsed = int(k_best) if k_best and k_best != "all" else k_best
-            except:
+            except Exception:
                 k_best_parsed = k_best
             
             processing_params = {
@@ -2335,10 +2381,11 @@ with tab2:
                         fig, msg = create_custom_plot(df, plot_config)
                         if fig:
                             # Display the plot
+                            plot_uid = f"manual_{plot_type}_{int(time.time())}_{id(fig)}"
                             if hasattr(fig, 'update_layout'):  # Plotly figure
-                                st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, use_container_width=True, key=f"plotly_{plot_uid}")
                             else:  # Matplotlib figure
-                                st.pyplot(fig)
+                                st.pyplot(fig, key=f"mpl_{plot_uid}")
                             
                             # Cache the plot
                             cache_key = f"manual_{plot_type}_{int(time.time())}"
@@ -2609,7 +2656,7 @@ with tab4:
             timestamp_str = cache_key.split('_')[-1] if '_' in cache_key else 'unknown'
             try:
                 timestamp = datetime.fromtimestamp(int(timestamp_str)).strftime("%H:%M:%S")
-            except:
+            except Exception:
                 timestamp = "unknown"
                 
             with st.expander(f"📊 Plot Set: {cache_key} (Created: {timestamp})", expanded=True):
@@ -2617,10 +2664,11 @@ with tab4:
                     st.markdown(f"**{title}**")
                     
                     try:
+                        plot_uid = f"result_{cache_key}_{i}_{id(fig)}"
                         if hasattr(fig, 'update_layout'):  # Plotly figure
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True, key=f"plotly_{plot_uid}")
                         elif hasattr(fig, 'savefig'):  # Matplotlib figure
-                            st.pyplot(fig)
+                            st.pyplot(fig, key=f"mpl_{plot_uid}")
                         else:
                             st.warning(f"Unknown plot type for {title}")
                     except Exception as e:
@@ -2781,13 +2829,14 @@ Format as numbered list with brief explanations."""
                 if include_plots and st.session_state.plot_cache:
                     st.markdown("### 📊 Report Visualizations")
                     for cache_key, plots in st.session_state.plot_cache.items():
-                        for title, fig in plots:
+                        for i, (title, fig) in enumerate(plots):
                             st.markdown(f"**{title}**")
                             try:
+                                rpt_uid = f"report_{cache_key}_{i}_{id(fig)}"
                                 if hasattr(fig, 'update_layout'):
-                                    st.plotly_chart(fig, use_container_width=True)
+                                    st.plotly_chart(fig, use_container_width=True, key=f"plotly_{rpt_uid}")
                                 elif hasattr(fig, 'savefig'):
-                                    st.pyplot(fig)
+                                    st.pyplot(fig, key=f"mpl_{rpt_uid}")
                             except Exception:
                                 pass
         
