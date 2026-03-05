@@ -354,9 +354,6 @@ def ask_gemini_basic(prompt: str, context: Dict[str, Any] = None) -> str:
         return "❌ Gemini not available - please check your API key"
     
     try:
-        # Use the correct model name
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        
         # Add context about files if available
         context_str = ""
         if context and "files" in context:
@@ -373,23 +370,67 @@ User request: {prompt}
 
 Provide a helpful response about what analysis or operations should be performed. Be specific and actionable."""
         
-        # ✅ Correct way to call Gemini
-        response = model.generate_content(
-            contents=[{
-                "role": "user",
-                "parts": [{"text": full_prompt}]
-            }]
-        )
-        
-        # ✅ Safely extract text
-        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-            return response.candidates[0].content.parts[0].text
-        return "No response generated"
+        text = _call_gemini_with_fallback([{"role": "user", "parts": [{"text": full_prompt}]}])
+        return text
     
     except Exception as e:
         return f"❌ Error calling Gemini: {str(e)}"
 
 GENAI = init_genai()
+
+# --- Gemini Fallback Key Mechanism ---
+def _get_all_api_keys() -> List[str]:
+    """Return a de-duplicated ordered list of API keys to try (primary first, then backup)."""
+    keys: List[str] = []
+    for env_var in ("GOOGLE_API_KEY", "GEMINI_BACKUP_KEY"):
+        k = os.getenv(env_var, "").strip()
+        if k and k not in keys:
+            keys.append(k)
+    return keys
+
+def _call_gemini_with_fallback(prompt_contents: list, *, primary_key: str = None, model_name: str = "gemini-2.5-flash"):
+    """Call Gemini generate_content, auto-retrying with backup keys on ANY failure.
+    
+    Args:
+        prompt_contents: The `contents` list to pass to generate_content.
+        primary_key: If provided, this key is tried first (before GOOGLE_API_KEY / GEMINI_BACKUP_KEY).
+        model_name: Gemini model name.
+    Returns:
+        The raw text string from Gemini.
+    Raises:
+        Exception: If ALL keys fail, raises the last exception.
+    """
+    keys_to_try: List[str] = []
+    if primary_key and primary_key.strip():
+        keys_to_try.append(primary_key.strip())
+    keys_to_try.extend([k for k in _get_all_api_keys() if k not in keys_to_try])
+
+    if not keys_to_try:
+        raise ValueError("No Gemini API keys configured. Set GOOGLE_API_KEY or GEMINI_BACKUP_KEY.")
+
+    last_error = None
+    for key in keys_to_try:
+        try:
+            genai.configure(api_key=key)
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(contents=prompt_contents)
+            if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
+                raise ValueError("Gemini returned empty response")
+            text = resp.candidates[0].content.parts[0].text
+            return text
+        except Exception as e:
+            last_error = e
+            # Log which key failed (masked) and continue to next
+            masked = key[:8] + "..." + key[-4:] if len(key) > 14 else "***"
+            st.toast(f"⚠️ Key {masked} failed ({type(e).__name__}), trying next key...", icon="🔄")
+            continue
+
+    # All keys exhausted — restore original key and raise
+    orig = os.getenv("GOOGLE_API_KEY", "")
+    if orig:
+        genai.configure(api_key=orig)
+    raise last_error  # type: ignore
+
 
 # --- Gemini-Driven Smart Helpers ---
 
@@ -436,8 +477,6 @@ def gemini_recommend_preprocessing(snapshot: str) -> Dict[str, Any]:
     }
     try:
         _smart_clean_key = os.getenv("GEMINI_SMART_CLEAN_KEY", os.getenv("GOOGLE_API_KEY", ""))
-        genai.configure(api_key=_smart_clean_key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""You are a data-science assistant. Given the dataset snapshot below, return ONLY a valid JSON object (no markdown, no explanation) with the best preprocessing parameters.
 
 Dataset snapshot:
@@ -456,10 +495,10 @@ Return JSON with these keys (omit any you want to leave at default):
 - max_categories (int)
 
 Choose what is best for THIS dataset. Respond with JSON only."""
-        resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
-        if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
-            raise ValueError("Gemini returned empty response")
-        raw = resp.candidates[0].content.parts[0].text.strip()
+        raw = _call_gemini_with_fallback(
+            [{"role": "user", "parts": [{"text": prompt}]}],
+            primary_key=_smart_clean_key
+        ).strip()
         # strip markdown fences if present
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -490,8 +529,6 @@ def gemini_recommend_full_preprocessing(snapshot: str) -> Dict[str, Any]:
     }
     try:
         _full_preprocess_key = os.getenv("GEMINI_FULL_PREPROCESS_KEY", os.getenv("GOOGLE_API_KEY", ""))
-        genai.configure(api_key=_full_preprocess_key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""You are a data-science assistant. Given the dataset snapshot below, return ONLY a valid JSON object (no markdown, no explanation) with a COMPREHENSIVE preprocessing pipeline.
 
 Dataset snapshot:
@@ -508,10 +545,10 @@ Return JSON with these keys (include ALL that make sense for this dataset):
 - feature_engineering (bool) + polynomial (bool) + poly_degree (int)
 
 Pick what is BEST for this specific data. Respond with JSON only."""
-        resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
-        if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
-            raise ValueError("Gemini returned empty response")
-        raw = resp.candidates[0].content.parts[0].text.strip()
+        raw = _call_gemini_with_fallback(
+            [{"role": "user", "parts": [{"text": prompt}]}],
+            primary_key=_full_preprocess_key
+        ).strip()
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         params = json.loads(raw)
@@ -531,8 +568,6 @@ def gemini_recommend_visualizations(snapshot: str) -> List[Dict[str, Any]]:
     Falls back to [{'type':'auto'}] on failure."""
     try:
         _auto_viz_key = os.getenv("GEMINI_AUTO_VIZ_KEY", os.getenv("GOOGLE_API_KEY", ""))
-        genai.configure(api_key=_auto_viz_key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""You are a data-visualization expert. Given the dataset snapshot below, return ONLY a valid JSON array (no markdown, no explanation) of up to 6 plot configurations.
 
 Dataset snapshot:
@@ -546,10 +581,10 @@ Each element should be a JSON object with keys:
 - title: short descriptive title
 
 Choose plots that reveal the MOST insight for this specific dataset. Return JSON array only."""
-        resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
-        if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
-            raise ValueError("Gemini returned empty response")
-        raw = resp.candidates[0].content.parts[0].text.strip()
+        raw = _call_gemini_with_fallback(
+            [{"role": "user", "parts": [{"text": prompt}]}],
+            primary_key=_auto_viz_key
+        ).strip()
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         configs = json.loads(raw)
@@ -1876,15 +1911,35 @@ EXAMPLE USER REQUESTS:
 Execute or respond immediately. No extra explanations.
 """
                 try:
-                    llm = ChatGoogleGenerativeAI(
-                    model="gemini-2.5-flash",
-                    google_api_key=os.getenv("GOOGLE_API_KEY"),
-                    )
-                    full_messages = [
-                    SystemMessage(content=system_prompt)
-                    ] + messages
-                    response = llm.bind_tools(tools).invoke(full_messages)
-                    return {"messages": messages + [response]}
+                    # Build ordered list of keys to try
+                    _agent_keys = []
+                    _primary = os.getenv("GOOGLE_API_KEY", "")
+                    if _primary:
+                        _agent_keys.append(_primary)
+                    _backup = os.getenv("GEMINI_BACKUP_KEY", "")
+                    if _backup and _backup not in _agent_keys:
+                        _agent_keys.append(_backup)
+                    if not _agent_keys:
+                        raise ValueError("No API keys configured")
+
+                    _last_err = None
+                    for _ak in _agent_keys:
+                        try:
+                            llm = ChatGoogleGenerativeAI(
+                                model="gemini-2.5-flash",
+                                google_api_key=_ak,
+                            )
+                            full_messages = [
+                                SystemMessage(content=system_prompt)
+                            ] + messages
+                            response = llm.bind_tools(tools).invoke(full_messages)
+                            return {"messages": messages + [response]}
+                        except Exception as _e:
+                            _last_err = _e
+                            _masked = _ak[:8] + "..." + _ak[-4:] if len(_ak) > 14 else "***"
+                            st.toast(f"⚠️ Agent key {_masked} failed ({type(_e).__name__}), trying next...", icon="🔄")
+                            continue
+                    raise _last_err  # type: ignore
                 except Exception as e:
                     error_response = AIMessage(content=f"❌ Agent error: {str(e)}")
                     return {"messages": messages + [error_response]}
@@ -2773,17 +2828,8 @@ with tab5:
 {context}
 
 Format as numbered list with brief explanations."""
-                        model = GENAI.GenerativeModel("gemini-2.5-flash")
-                        response = model.generate_content(
-                            contents=[{
-                                "role": "user",
-                                "parts": [{"text": prompt}]
-                            }]
-                        )
-                        if response.candidates and response.candidates[0].content.parts:
-                            report_content.append(response.candidates[0].content.parts[0].text)
-                        else:
-                            report_content.append("No recommendations could be generated at this time.")
+                        rec_text = _call_gemini_with_fallback([{"role": "user", "parts": [{"text": prompt}]}])
+                        report_content.append(rec_text)
                     except Exception as e:
                         report_content.append(f"Could not generate recommendations: {str(e)}")
                     
