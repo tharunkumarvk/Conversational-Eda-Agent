@@ -389,6 +389,268 @@ Provide a helpful response about what analysis or operations should be performed
 
 GENAI = init_genai()
 
+# --- Gemini-Driven Smart Helpers ---
+
+def get_dataset_snapshot(df: pd.DataFrame, max_rows: int = 3) -> str:
+    """Build a compact text snapshot of a DataFrame for Gemini context.
+    Keeps token cost very low while giving the model enough info to decide."""
+    lines = []
+    lines.append(f"Shape: {df.shape[0]} rows x {df.shape[1]} cols")
+    # dtypes summary
+    dtype_map = df.dtypes.apply(str).to_dict()
+    lines.append(f"Columns & types: {json.dumps(dtype_map)}")
+    # missing %
+    miss_pct = (df.isnull().mean() * 100).round(1)
+    miss_cols = miss_pct[miss_pct > 0].to_dict()
+    if miss_cols:
+        lines.append(f"Missing%: {json.dumps(miss_cols)}")
+    else:
+        lines.append("Missing%: none")
+    # numeric stats (very compact)
+    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if num_cols:
+        desc = df[num_cols].describe().loc[['mean','std','min','max']].round(2).to_dict()
+        lines.append(f"Numeric stats: {json.dumps(desc)}")
+    # categorical cardinality
+    cat_cols = df.select_dtypes(include=['object','category']).columns.tolist()
+    if cat_cols:
+        card = {c: int(df[c].nunique()) for c in cat_cols}
+        lines.append(f"Categorical cardinality: {json.dumps(card)}")
+    # tiny sample
+    lines.append(f"Head({max_rows}):\n{df.head(max_rows).to_string(max_colwidth=30)}")
+    return "\n".join(lines)
+
+
+def gemini_recommend_preprocessing(snapshot: str) -> Dict[str, Any]:
+    """Ask Gemini to recommend preprocessing params as JSON.
+    Returns a dict ready to pass into enhanced_preprocessing.
+    Falls back to sensible defaults on any failure."""
+    DEFAULTS = {
+        "handle_missing": True, "missing_strategy": "median",
+        "cat_missing_strategy": "mode",
+        "handle_outliers": True, "outlier_method": "iqr", "outlier_action": "cap",
+        "scale_type": "standard",
+        "encode_categoricals": True, "encode_method": "onehot", "max_categories": 10,
+    }
+    try:
+        _smart_clean_key = os.getenv("GEMINI_SMART_CLEAN_KEY", "AIzaSyDUosvIBmxZxHahgEaapxME9EieqYCtMxE")
+        genai.configure(api_key=_smart_clean_key)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        prompt = f"""You are a data-science assistant. Given the dataset snapshot below, return ONLY a valid JSON object (no markdown, no explanation) with the best preprocessing parameters.
+
+Dataset snapshot:
+{snapshot}
+
+Return JSON with these keys (omit any you want to leave at default):
+- handle_missing (bool)
+- missing_strategy: mean | median | mode | knn | iterative | drop
+- cat_missing_strategy: mode | constant
+- handle_outliers (bool)
+- outlier_method: iqr | zscore | isolation_forest
+- outlier_action: cap | remove | transform
+- scale_type: none | minmax | standard | robust
+- encode_categoricals (bool)
+- encode_method: onehot | label | ordinal | frequency
+- max_categories (int)
+
+Choose what is best for THIS dataset. Respond with JSON only."""
+        resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
+        raw = resp.candidates[0].content.parts[0].text.strip()
+        # strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        params = json.loads(raw)
+        # merge with defaults so nothing is missing
+        merged = {**DEFAULTS, **params}
+        return merged
+    except Exception as e:
+        st.warning(f"Gemini param recommendation failed ({e}), using smart defaults.")
+        return DEFAULTS
+    finally:
+        # Restore original key
+        _orig_key = os.getenv("GOOGLE_API_KEY")
+        if _orig_key:
+            genai.configure(api_key=_orig_key)
+
+
+def gemini_recommend_full_preprocessing(snapshot: str) -> Dict[str, Any]:
+    """Like above but asks for a more aggressive / complete pipeline."""
+    DEFAULTS = {
+        "handle_missing": True, "missing_strategy": "knn",
+        "cat_missing_strategy": "mode",
+        "handle_outliers": True, "outlier_method": "iqr", "outlier_action": "cap",
+        "scale_type": "minmax",
+        "encode_categoricals": True, "encode_method": "onehot", "max_categories": 15,
+        "reduce_dimensions": False,
+        "feature_selection": True, "sel_method": "variance", "var_threshold": 0.01,
+    }
+    try:
+        _full_preprocess_key = os.getenv("GEMINI_FULL_PREPROCESS_KEY", "AIzaSyBGfDWFWNy-p47yVUZ0dgbdoxFY3niFdn4")
+        genai.configure(api_key=_full_preprocess_key)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        prompt = f"""You are a data-science assistant. Given the dataset snapshot below, return ONLY a valid JSON object (no markdown, no explanation) with a COMPREHENSIVE preprocessing pipeline.
+
+Dataset snapshot:
+{snapshot}
+
+Return JSON with these keys (include ALL that make sense for this dataset):
+- handle_missing (bool) + missing_strategy (mean|median|mode|knn|iterative|drop)
+- cat_missing_strategy (mode|constant)
+- handle_outliers (bool) + outlier_method (iqr|zscore|isolation_forest) + outlier_action (cap|remove|transform)
+- scale_type (none|minmax|standard|robust)
+- encode_categoricals (bool) + encode_method (onehot|label|ordinal|frequency) + max_categories (int)
+- reduce_dimensions (bool) + red_method (pca|tsne|svd) + n_components (int)
+- feature_selection (bool) + sel_method (variance|kbest|importance) + var_threshold (float)
+- feature_engineering (bool) + polynomial (bool) + poly_degree (int)
+
+Pick what is BEST for this specific data. Respond with JSON only."""
+        resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
+        raw = resp.candidates[0].content.parts[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        params = json.loads(raw)
+        merged = {**DEFAULTS, **params}
+        return merged
+    except Exception as e:
+        st.warning(f"Gemini full-preprocess recommendation failed ({e}), using smart defaults.")
+        return DEFAULTS
+    finally:
+        _orig_key = os.getenv("GOOGLE_API_KEY")
+        if _orig_key:
+            genai.configure(api_key=_orig_key)
+
+
+def gemini_recommend_visualizations(snapshot: str) -> List[Dict[str, Any]]:
+    """Ask Gemini to recommend plot configs. Returns list of plot config dicts.
+    Falls back to [{'type':'auto'}] on failure."""
+    try:
+        _auto_viz_key = os.getenv("GEMINI_AUTO_VIZ_KEY", "AIzaSyCcfAV0-2jsqZQjrBf_nlVR3FWypwP-guU")
+        genai.configure(api_key=_auto_viz_key)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        prompt = f"""You are a data-visualization expert. Given the dataset snapshot below, return ONLY a valid JSON array (no markdown, no explanation) of up to 6 plot configurations.
+
+Dataset snapshot:
+{snapshot}
+
+Each element should be a JSON object with keys:
+- type: scatter|scatter3d|line|bar|histogram|box|violin|heatmap|pie|contour|kdeplot|pairplot|countplot
+- x: column name (or null)
+- y: column name (or null)
+- color: column name for color grouping (or null)
+- title: short descriptive title
+
+Choose plots that reveal the MOST insight for this specific dataset. Return JSON array only."""
+        resp = model.generate_content(contents=[{"role": "user", "parts": [{"text": prompt}]}])
+        raw = resp.candidates[0].content.parts[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        configs = json.loads(raw)
+        if isinstance(configs, list) and len(configs) > 0:
+            return configs
+        return [{"type": "auto"}]
+    except Exception as e:
+        st.warning(f"Gemini visualization recommendation failed ({e}), using auto mode.")
+        return [{"type": "auto"}]
+    finally:
+        _orig_key = os.getenv("GOOGLE_API_KEY")
+        if _orig_key:
+            genai.configure(api_key=_orig_key)
+
+
+def generate_pdf_report(report_sections: List[str], plot_images: List[bytes] = None) -> bytes:
+    """Generate a PDF report from text sections and optional plot images.
+    Returns PDF bytes."""
+    from fpdf import FPDF
+
+    class EDA_PDF(FPDF):
+        def header(self):
+            self.set_font('Helvetica', 'B', 10)
+            self.cell(0, 8, 'EDA Analysis Report', border=False, align='C')
+            self.ln(10)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Helvetica', 'I', 8)
+            self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
+
+    pdf = EDA_PDF()
+    pdf.alias_nb_pages()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    for section in report_sections:
+        for line in section.split("\n"):
+            line = line.strip()
+            if not line:
+                pdf.ln(4)
+                continue
+            # Handle markdown-ish headings
+            if line.startswith("# "):
+                pdf.set_font('Helvetica', 'B', 16)
+                pdf.multi_cell(0, 8, line.lstrip('# ').strip())
+                pdf.ln(3)
+            elif line.startswith("## "):
+                pdf.set_font('Helvetica', 'B', 13)
+                pdf.multi_cell(0, 7, line.lstrip('# ').strip())
+                pdf.ln(2)
+            elif line.startswith("### "):
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.multi_cell(0, 6, line.lstrip('# ').strip())
+                pdf.ln(2)
+            elif line.startswith("---"):
+                pdf.ln(2)
+                pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + pdf.epw, pdf.get_y())
+                pdf.ln(4)
+            else:
+                pdf.set_font('Helvetica', '', 10)
+                # Clean markdown bold markers for PDF
+                clean_line = line.replace("**", "")
+                pdf.multi_cell(0, 5, clean_line)
+                pdf.ln(1)
+
+    # Embed plot images
+    if plot_images:
+        pdf.add_page()
+        pdf.set_font('Helvetica', 'B', 13)
+        pdf.cell(0, 8, 'Visualizations', border=False, align='L')
+        pdf.ln(10)
+        for i, img_bytes in enumerate(plot_images):
+            try:
+                tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                tmp.write(img_bytes)
+                tmp.close()
+                # Fit image within page width
+                pdf.image(tmp.name, x=10, w=pdf.epw)
+                pdf.ln(5)
+                os.unlink(tmp.name)
+                # New page after every 2 images
+                if (i + 1) % 2 == 0 and i + 1 < len(plot_images):
+                    pdf.add_page()
+            except Exception:
+                pass
+
+    return bytes(pdf.output())
+
+
+def collect_plot_images_from_cache() -> List[bytes]:
+    """Convert cached plots (Plotly/Matplotlib) to PNG bytes for PDF embedding."""
+    images = []
+    for cache_key, plots in st.session_state.plot_cache.items():
+        for title, fig in plots:
+            try:
+                if hasattr(fig, 'to_image'):  # Plotly
+                    img_bytes = fig.to_image(format='png', width=900, height=500)
+                    images.append(img_bytes)
+                elif hasattr(fig, 'savefig'):  # Matplotlib
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+                    buf.seek(0)
+                    images.append(buf.getvalue())
+            except Exception:
+                pass
+    return images
+
+
 # --- Session State Initialization ---
 def init_session_state():
     """Initialize all session state variables"""
@@ -1815,53 +2077,94 @@ with tab2:
     else:
         # Quick Actions
         st.subheader("⚡ Quick Actions")
-        st.markdown("*Use these buttons for instant preprocessing with common settings*")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("🧹 Smart Clean", help="Fill missing values, handle outliers, basic preprocessing"):
+            if st.button("🧹 Smart Clean", help="Gemini picks the best cleaning strategy for your data"):
                 if st.session_state.last_idx is not None:
-                    with st.spinner("Processing..."):
+                    with st.spinner("🤖 Gemini is analyzing your data to pick the best cleaning strategy..."):
                         df, name, idx = get_file_by_ref(st.session_state.last_idx)
-                        params = {
-                            "handle_missing": True,
-                            "missing_strategy": "mean",
-                            "handle_outliers": True,
-                            "outlier_action": "cap"
-                        }
+                        snapshot = get_dataset_snapshot(df)
+                        params = gemini_recommend_preprocessing(snapshot)
                         processed_df, actions = enhanced_preprocessing(df, params)
                         processed_name = f"smart_cleaned_{name.split('.')[0]}_{int(time.time())}.csv"
                         st.session_state.preprocessed_files[processed_name] = processed_df
-                        st.success(f"✅ Smart cleaning complete! File: {processed_name}")
+                        history = ProcessingHistory(
+                            action="smart_clean_gemini",
+                            params=params,
+                            timestamp=datetime.now().isoformat(),
+                            result_shape=processed_df.shape,
+                            success=True,
+                            message=f"Gemini-driven: {len(actions)} steps"
+                        )
+                        st.session_state.processing_history.append(history)
+                        st.success(f"✅ Smart cleaning complete! Applied {len(actions)} steps.")
+                        with st.expander("🔍 What Gemini chose", expanded=False):
+                            for i, a in enumerate(actions, 1):
+                                st.write(f"{i}. {a}")
+                            st.json(params)
         
         with col2:
-            if st.button("📊 Full Preprocess", help="Complete preprocessing pipeline"):
+            if st.button("📊 Full Preprocess", help="Gemini designs a comprehensive pipeline for your data"):
                 if st.session_state.last_idx is not None:
-                    with st.spinner("Processing..."):
+                    with st.spinner("🤖 Gemini is designing a full preprocessing pipeline..."):
                         df, name, idx = get_file_by_ref(st.session_state.last_idx)
-                        params = {
-                            "handle_missing": True,
-                            "missing_strategy": "mean",
-                            "handle_outliers": True,
-                            "min_max_scale": True,
-                            "one_hot_encode": True
-                        }
+                        snapshot = get_dataset_snapshot(df)
+                        params = gemini_recommend_full_preprocessing(snapshot)
                         processed_df, actions = enhanced_preprocessing(df, params)
                         processed_name = f"full_preprocessed_{name.split('.')[0]}_{int(time.time())}.csv"
                         st.session_state.preprocessed_files[processed_name] = processed_df
-                        st.success(f"✅ Full preprocessing complete! File: {processed_name}")
+                        history = ProcessingHistory(
+                            action="full_preprocess_gemini",
+                            params=params,
+                            timestamp=datetime.now().isoformat(),
+                            result_shape=processed_df.shape,
+                            success=True,
+                            message=f"Gemini-driven full: {len(actions)} steps"
+                        )
+                        st.session_state.processing_history.append(history)
+                        st.success(f"✅ Full preprocessing complete! Applied {len(actions)} steps.")
+                        with st.expander("🔍 What Gemini chose", expanded=False):
+                            for i, a in enumerate(actions, 1):
+                                st.write(f"{i}. {a}")
+                            st.json(params)
         
         with col3:
-            if st.button("📈 Auto Visualize All", help="Generate plots for the latest file"):
+            if st.button("📈 Auto Visualize All", help="Gemini picks the most insightful plots for your data"):
                 if st.session_state.last_idx is not None:
-                    with st.spinner("Creating visualizations..."):
+                    with st.spinner("🤖 Gemini is choosing the best visualizations..."):
                         df, name, idx = get_file_by_ref(st.session_state.last_idx)
-                        plots = create_smart_visualizations(df, max_plots=6)
-                        if plots:
+                        snapshot = get_dataset_snapshot(df)
+                        viz_configs = gemini_recommend_visualizations(snapshot)
+                        all_plots = []
+                        for cfg in viz_configs:
+                            ptype = cfg.get("type", "auto")
+                            if ptype == "auto":
+                                auto_plots = create_smart_visualizations(df, max_plots=6)
+                                all_plots.extend(auto_plots)
+                            else:
+                                plot_config = {
+                                    'type': ptype,
+                                    'x': cfg.get('x'),
+                                    'y': cfg.get('y'),
+                                    'z': cfg.get('z'),
+                                    'color': cfg.get('color'),
+                                    'title': cfg.get('title', f"{ptype.title()} Plot"),
+                                }
+                                fig, msg = create_custom_plot(df, plot_config)
+                                if fig:
+                                    all_plots.append((cfg.get('title', f"{ptype.title()} Plot"), fig))
+                        # Fallback if Gemini configs produced nothing
+                        if not all_plots:
+                            all_plots = create_smart_visualizations(df, max_plots=6)
+                        if all_plots:
                             cache_key = f"auto_all_{idx}_{int(time.time())}"
-                            st.session_state.plot_cache[cache_key] = plots
-                            st.success(f"✅ Generated {len(plots)} visualizations!")
+                            st.session_state.plot_cache[cache_key] = all_plots
+                            st.success(f"✅ Generated {len(all_plots)} visualizations!")
+                            with st.expander("🔍 What Gemini chose", expanded=False):
+                                for cfg in viz_configs:
+                                    st.write(f"• {cfg.get('title', cfg.get('type', 'auto'))}")
                         else:
                             st.warning("Could not generate plots")
         
@@ -2372,20 +2675,20 @@ with tab5:
             with st.spinner("Generating comprehensive report..."):
                 # Create report content
                 report_content = []
-                report_content.append("# 📊 EDA Analysis Report")
+                report_content.append("# EDA Analysis Report")
                 report_content.append(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 report_content.append(f"Total files analyzed: {len(report_files)}")
                 report_content.append("\n---\n")
                 
                 # File summaries
-                report_content.append("## 📁 Dataset Overview")
+                report_content.append("## Dataset Overview")
                 for file_idx in report_files:
                     file_data = st.session_state.files[file_idx]
                     metadata = file_data["metadata"]
                     df = file_data["df"]
                     
                     report_content.append(f"### File {file_idx}: {metadata.name}")
-                    report_content.append(f"- **Shape:** {metadata.shape[0]:,} rows × {metadata.shape[1]} columns")
+                    report_content.append(f"- **Shape:** {metadata.shape[0]:,} rows x {metadata.shape[1]} columns")
                     report_content.append(f"- **Size:** {metadata.file_size / 1024**2:.1f} MB")
                     report_content.append(f"- **Data Types:** {len(set(metadata.dtypes.values()))} unique types")
                     
@@ -2399,30 +2702,29 @@ with tab5:
                 
                 # Processing history
                 if include_preprocessing and st.session_state.processing_history:
-                    report_content.append("## 🛠️ Processing History")
+                    report_content.append("## Processing History")
                     for history in st.session_state.processing_history[-10:]:
                         timestamp = datetime.fromisoformat(history.timestamp).strftime("%Y-%m-%d %H:%M:%S")
-                        status = "✅ Success" if history.success else "❌ Failed"
+                        status = "Success" if history.success else "Failed"
                         report_content.append(f"- **{history.action.replace('_', ' ').title()}** ({timestamp}): {status}")
-                        report_content.append(f"  - Result: {history.result_shape[0]:,} × {history.result_shape[1]}")
+                        report_content.append(f"  - Result: {history.result_shape[0]:,} x {history.result_shape[1]}")
                         report_content.append(f"  - {history.message}")
                     report_content.append("")
                 
                 # AI Recommendations
                 if include_recommendations and GENAI:
-                    report_content.append("## 🤖 AI Recommendations")
+                    report_content.append("## AI Recommendations")
                     try:
                         context = f"Dataset analysis summary:\n"
                         for file_idx in report_files:
                             metadata = st.session_state.files[file_idx]["metadata"]
-                            context += f"- {metadata.name}: {metadata.shape[0]:,} × {metadata.shape[1]}, {sum(metadata.missing_count.values())} missing values\n"
+                            context += f"- {metadata.name}: {metadata.shape[0]:,} x {metadata.shape[1]}, {sum(metadata.missing_count.values())} missing values\n"
                         
                         prompt = f"""Based on this dataset analysis, provide 5 specific, actionable recommendations for further analysis:
 
 {context}
 
 Format as numbered list with brief explanations."""
-                        # Create model instance first
                         model = GENAI.GenerativeModel("gemini-2.5-flash")
                         response = model.generate_content(
                             contents=[{
@@ -2439,26 +2741,61 @@ Format as numbered list with brief explanations."""
                     
                     report_content.append("")
                 
-                # Export options
+                # Collect plot images for report
+                plot_images = []
+                if include_plots and st.session_state.plot_cache:
+                    report_content.append("## Visualizations")
+                    report_content.append(f"{len(st.session_state.plot_cache)} plot set(s) included below.")
+                    report_content.append("")
+                    plot_images = collect_plot_images_from_cache()
+                
                 report_text = "\n".join(report_content)
                 
-                # Create downloadable markdown
+                # --- Generate PDF ---
+                try:
+                    pdf_bytes = generate_pdf_report(report_content, plot_images if plot_images else None)
+                    st.download_button(
+                        "📥 Download Report (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"eda_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        key="pdf_report_download"
+                    )
+                except Exception as e:
+                    st.warning(f"PDF generation failed ({e}), falling back to Markdown.")
+                
+                # Also offer Markdown download
                 st.download_button(
                     "📥 Download Report (Markdown)",
                     data=report_text,
                     file_name=f"eda_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-                    mime="text/markdown"
+                    mime="text/markdown",
+                    key="md_report_download"
                 )
                 
                 # Display report preview
                 st.markdown("### 📋 Report Preview")
                 st.markdown(report_text)
+                
+                # Show embedded plot previews in the report tab
+                if include_plots and st.session_state.plot_cache:
+                    st.markdown("### 📊 Report Visualizations")
+                    for cache_key, plots in st.session_state.plot_cache.items():
+                        for title, fig in plots:
+                            st.markdown(f"**{title}**")
+                            try:
+                                if hasattr(fig, 'update_layout'):
+                                    st.plotly_chart(fig, use_container_width=True)
+                                elif hasattr(fig, 'savefig'):
+                                    st.pyplot(fig)
+                            except Exception:
+                                pass
         
         # Bulk export options
         st.subheader("📦 Bulk Export")
         
         if st.session_state.preprocessed_files:
-            if st.button("📁 Export All Processed Files"):
+            if st.button("📁 Export All Processed Files (PDF + CSV)"):
                 import zipfile
                 zip_buffer = io.BytesIO()
                 
@@ -2472,7 +2809,8 @@ Format as numbered list with brief explanations."""
                     "📥 Download All as ZIP",
                     data=zip_buffer.getvalue(),
                     file_name=f"processed_datasets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-                    mime="application/zip"
+                    mime="application/zip",
+                    key="zip_export_download"
                 )
 
 # Footer
@@ -2517,27 +2855,35 @@ if st.session_state.files and st.session_state.last_idx is not None:
     st.sidebar.markdown("### ⚡ Quick Actions")
     
     if st.sidebar.button("🧹 Clean Latest File"):
-        with st.spinner("Processing..."):
+        with st.spinner("🤖 Gemini picking best cleaning strategy..."):
             df, name, idx = get_file_by_ref(st.session_state.last_idx)
-            params = {
-                "handle_missing": True,
-                "missing_strategy": "mean",
-                "handle_outliers": True,
-                "outlier_action": "cap"
-            }
+            snapshot = get_dataset_snapshot(df)
+            params = gemini_recommend_preprocessing(snapshot)
             processed_df, actions = enhanced_preprocessing(df, params)
             processed_name = f"quick_clean_{name.split('.')[0]}_{int(time.time())}.csv"
             st.session_state.preprocessed_files[processed_name] = processed_df
-            st.sidebar.success("✅ Cleaned!")
+            st.sidebar.success(f"✅ Cleaned! ({len(actions)} steps)")
     
     if st.sidebar.button("📊 Visualize Latest"):
-        with st.spinner("Creating plots..."):
+        with st.spinner("🤖 Gemini picking best plots..."):
             df, name, idx = get_file_by_ref(st.session_state.last_idx)
-            plots = create_smart_visualizations(df, max_plots=4)
-            if plots:
+            snapshot = get_dataset_snapshot(df)
+            viz_configs = gemini_recommend_visualizations(snapshot)
+            all_plots = []
+            for cfg in viz_configs:
+                ptype = cfg.get("type", "auto")
+                if ptype == "auto":
+                    all_plots.extend(create_smart_visualizations(df, max_plots=4))
+                else:
+                    fig, msg = create_custom_plot(df, {'type': ptype, 'x': cfg.get('x'), 'y': cfg.get('y'), 'color': cfg.get('color'), 'title': cfg.get('title', f"{ptype.title()}")})
+                    if fig:
+                        all_plots.append((cfg.get('title', ptype.title()), fig))
+            if not all_plots:
+                all_plots = create_smart_visualizations(df, max_plots=4)
+            if all_plots:
                 cache_key = f"sidebar_viz_{int(time.time())}"
-                st.session_state.plot_cache[cache_key] = plots
-                st.sidebar.success("✅ Plots created!")
+                st.session_state.plot_cache[cache_key] = all_plots
+                st.sidebar.success(f"✅ {len(all_plots)} plots created!")
 
 # AWS Status Panel
 if AWS_AVAILABLE and aws_config:
