@@ -2385,7 +2385,7 @@ with tab2:
                             if hasattr(fig, 'update_layout'):  # Plotly figure
                                 st.plotly_chart(fig, use_container_width=True, key=f"plotly_{plot_uid}")
                             else:  # Matplotlib figure
-                                st.pyplot(fig, key=f"mpl_{plot_uid}")
+                                st.pyplot(fig)
                             
                             # Cache the plot
                             cache_key = f"manual_{plot_type}_{int(time.time())}"
@@ -2668,7 +2668,7 @@ with tab4:
                         if hasattr(fig, 'update_layout'):  # Plotly figure
                             st.plotly_chart(fig, use_container_width=True, key=f"plotly_{plot_uid}")
                         elif hasattr(fig, 'savefig'):  # Matplotlib figure
-                            st.pyplot(fig, key=f"mpl_{plot_uid}")
+                            st.pyplot(fig)
                         else:
                             st.warning(f"Unknown plot type for {title}")
                     except Exception as e:
@@ -2836,7 +2836,7 @@ Format as numbered list with brief explanations."""
                                 if hasattr(fig, 'update_layout'):
                                     st.plotly_chart(fig, use_container_width=True, key=f"plotly_{rpt_uid}")
                                 elif hasattr(fig, 'savefig'):
-                                    st.pyplot(fig, key=f"mpl_{rpt_uid}")
+                                    st.pyplot(fig)
                             except Exception:
                                 pass
         
