@@ -433,7 +433,7 @@ def gemini_recommend_preprocessing(snapshot: str) -> Dict[str, Any]:
         "encode_categoricals": True, "encode_method": "onehot", "max_categories": 10,
     }
     try:
-        _smart_clean_key = os.getenv("GEMINI_SMART_CLEAN_KEY", "AIzaSyDUosvIBmxZxHahgEaapxME9EieqYCtMxE")
+        _smart_clean_key = os.getenv("GEMINI_SMART_CLEAN_KEY", os.getenv("GOOGLE_API_KEY", ""))
         genai.configure(api_key=_smart_clean_key)
         model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""You are a data-science assistant. Given the dataset snapshot below, return ONLY a valid JSON object (no markdown, no explanation) with the best preprocessing parameters.
@@ -485,7 +485,7 @@ def gemini_recommend_full_preprocessing(snapshot: str) -> Dict[str, Any]:
         "feature_selection": True, "sel_method": "variance", "var_threshold": 0.01,
     }
     try:
-        _full_preprocess_key = os.getenv("GEMINI_FULL_PREPROCESS_KEY", "AIzaSyBGfDWFWNy-p47yVUZ0dgbdoxFY3niFdn4")
+        _full_preprocess_key = os.getenv("GEMINI_FULL_PREPROCESS_KEY", os.getenv("GOOGLE_API_KEY", ""))
         genai.configure(api_key=_full_preprocess_key)
         model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""You are a data-science assistant. Given the dataset snapshot below, return ONLY a valid JSON object (no markdown, no explanation) with a COMPREHENSIVE preprocessing pipeline.
@@ -524,7 +524,7 @@ def gemini_recommend_visualizations(snapshot: str) -> List[Dict[str, Any]]:
     """Ask Gemini to recommend plot configs. Returns list of plot config dicts.
     Falls back to [{'type':'auto'}] on failure."""
     try:
-        _auto_viz_key = os.getenv("GEMINI_AUTO_VIZ_KEY", "AIzaSyCcfAV0-2jsqZQjrBf_nlVR3FWypwP-guU")
+        _auto_viz_key = os.getenv("GEMINI_AUTO_VIZ_KEY", os.getenv("GOOGLE_API_KEY", ""))
         genai.configure(api_key=_auto_viz_key)
         model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""You are a data-visualization expert. Given the dataset snapshot below, return ONLY a valid JSON array (no markdown, no explanation) of up to 6 plot configurations.
